@@ -1,11 +1,17 @@
 #:kivy 2.3.0
 
+ScreenManager:
+    OrdersListScreen:
+
 <OrdersListScreen>:
+    name: "orders"
+
     BoxLayout:
         orientation: "vertical"
         padding: "10dp"
         spacing: "8dp"
 
+        # --- Поиск ---
         BoxLayout:
             size_hint_y: None
             height: "44dp"
@@ -13,199 +19,40 @@
 
             TextInput:
                 id: search_input
-                hint_text: "Поиск: ФИО / телефон / #ID"
+                hint_text: "Поиск: ФИО / телефон / ID"
                 multiline: False
 
             Spinner:
                 id: status_spinner
                 text: "all"
                 values: ["all", "new", "processing", "packed", "shipped", "done", "canceled"]
+                size_hint_x: None
+                width: "120dp"
 
             Button:
                 text: "Найти"
                 size_hint_x: None
-                width: "90dp"
+                width: "80dp"
                 on_release: root.apply_filter()
 
+        # --- Кнопки ---
         BoxLayout:
-            size_hint_y: None
-            height: "44dp"
-            spacing: "6dp"
+    size_hint_y: None
+    height: "44dp"
+    spacing: "6dp"
 
-            Button:
-                text: "+ Новый заказ"
-                on_release: root.go_create()
+    Button:
+        text: "+ Новый заказ"
+        on_release: root.go_create()
 
-            Button:
-                text: "Обновить"
-                on_release: root.refresh()
-
+    Button:
+        text: "Обновить заказы"
+        on_release: app.refresh_all()
+        # --- Список заказов ---
         ScrollView:
             GridLayout:
                 id: orders_list
                 cols: 1
+                spacing: "6dp"
                 size_hint_y: None
                 height: self.minimum_height
-                spacing: "6dp"
-
-
-<OrderCreateScreen>:
-    BoxLayout:
-        orientation: "vertical"
-        padding: "10dp"
-        spacing: "8dp"
-
-        Label:
-            text: "Создание заказа"
-            size_hint_y: None
-            height: "28dp"
-
-        TextInput:
-            id: in_name
-            hint_text: "ФИО"
-            multiline: False
-
-        TextInput:
-            id: in_phone
-            hint_text: "Телефон"
-            multiline: False
-
-        TextInput:
-            id: in_city
-            hint_text: "Город"
-            multiline: False
-
-        TextInput:
-            id: in_address
-            hint_text: "Адрес / отделение"
-            multiline: False
-
-        TextInput:
-            id: in_amount
-            hint_text: "Сумма (грн)"
-            multiline: False
-            input_filter: "float"
-
-        TextInput:
-            id: in_comment
-            hint_text: "Комментарий"
-            multiline: True
-
-        BoxLayout:
-            size_hint_y: None
-            height: "46dp"
-            spacing: "8dp"
-
-            Button:
-                text: "Назад"
-                on_release: app.root.current = "list"
-
-            Button:
-                text: "Сохранить"
-                on_release: root.save()
-
-
-<OrderDetailScreen>:
-    BoxLayout:
-        orientation: "vertical"
-        padding: "10dp"
-        spacing: "8dp"
-
-        Label:
-            id: lbl_id
-            text: "Заказ #"
-            size_hint_y: None
-            height: "28dp"
-
-        GridLayout:
-            cols: 2
-            size_hint_y: None
-            height: self.minimum_height
-            row_default_height: "28dp"
-            row_force_default: True
-
-            Label:
-                text: "ФИО:"
-                halign: "right"
-                text_size: self.size
-            Label:
-                id: lbl_name
-                text: "-"
-
-            Label:
-                text: "Телефон:"
-                halign: "right"
-                text_size: self.size
-            Label:
-                id: lbl_phone
-                text: "-"
-
-            Label:
-                text: "Город:"
-                halign: "right"
-                text_size: self.size
-            Label:
-                id: lbl_city
-                text: "-"
-
-            Label:
-                text: "Адрес:"
-                halign: "right"
-                text_size: self.size
-            Label:
-                id: lbl_address
-                text: "-"
-
-            Label:
-                text: "Сумма:"
-                halign: "right"
-                text_size: self.size
-            Label:
-                id: lbl_amount
-                text: "-"
-
-            Label:
-                text: "Комментарий:"
-                halign: "right"
-                text_size: self.size
-            Label:
-                id: lbl_comment
-                text: "-"
-
-            Label:
-                text: "ТТН:"
-                halign: "right"
-                text_size: self.size
-            Label:
-                id: lbl_ttn
-                text: "ТТН нет"
-
-        BoxLayout:
-            size_hint_y: None
-            height: "44dp"
-            spacing: "6dp"
-
-            Label:
-                text: "Статус:"
-                size_hint_x: None
-                width: "70dp"
-
-            Spinner:
-                id: status_spinner
-                text: "new"
-                values: ["new", "processing", "packed", "shipped", "done", "canceled"]
-
-            Button:
-                text: "Сохранить"
-                size_hint_x: None
-                width: "120dp"
-                on_release: root.save_status()
-
-        BoxLayout:
-            size_hint_y: None
-            height: "46dp"
-            spacing: "8dp"
-
-            Button:
-                text: "Назад"
-                on_release: app.root.current = "list"
