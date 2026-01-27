@@ -1,23 +1,18 @@
 from woo_api import get_orders
 import db
 
-# подключаем базу
 db.set_db_path("crm.db")
 db.init_db()
 
-# -------------------------------------------------
-# перевод статусов Woo → CRM
 # -------------------------------------------------
 
 def map_status(woo_status, shipping_method):
     woo_status = (woo_status or "").lower()
     shipping_method = (shipping_method or "").lower()
 
-    # Не оплачен
     if woo_status in ["pending", "failed", "checkout-draft"]:
         return "not_paid"
 
-    # Подтверждён (processing)
     if woo_status == "processing":
         if "nova" in shipping_method:
             return "confirmed_np"
@@ -25,41 +20,35 @@ def map_status(woo_status, shipping_method):
             return "confirmed_up"
         return "confirmed"
 
-    # Отправлено
     if woo_status == "completed":
         return "shipped"
 
-    # Отменён
     if woo_status == "cancelled":
         return "canceled"
 
-    # На удержании
     if woo_status in ["on-hold", "hold"]:
         return "hold"
 
-    # Невменяшка
     if woo_status == "bad":
         return "bad"
 
     return "new"
 
 # -------------------------------------------------
-# синхронизация
-# -------------------------------------------------
-
 
 def sync_orders():
     orders = get_orders(200)
 
     for o in orders:
+
         # ---------- PRODUCT ----------
         product = ""
         qty = 1
+
         if o.get("line_items"):
             name = o["line_items"][0].get("name", "")
             qty = o["line_items"][0].get("quantity", 1)
-            first_word = name.split()[0] if name else ""
-            product = first_word
+            product = name.split()[0]
 
         if qty > 1:
             product = f"{product} x{qty}"
@@ -68,24 +57,29 @@ def sync_orders():
         billing = o.get("billing", {})
         shipping = o.get("shipping", {})
 
-        first = billing.get("first_name", "")
-        last = billing.get("last_name", "")
-        middle = billing.get("company", "")
-
-        customer_name = f"{first} {last} {middle}".strip()
+        customer_name = f"{billing.get('first_name','')} {billing.get('last_name','')} {billing.get('company','')}".strip()
 
         # ---------- ADDRESS ----------
         city = shipping.get("city", "")
         address = shipping.get("address_1", "")
-        postcode = shipping.get("postcode", "")
-
-        if postcode:
-            address = f"{address}, отделение {postcode}"
 
         # ---------- SHIPPING METHOD ----------
         shipping_method = ""
         if o.get("shipping_lines"):
             shipping_method = o["shipping_lines"][0].get("method_id", "")
+
+        # ---------- SHIPPING META ----------
+        branch = ""
+        if o.get("shipping_lines"):
+            for m in o["shipping_lines"][0].get("meta_data", []):
+                key = str(m.get("key","")).lower()
+                val = str(m.get("value",""))
+                if "відділен" in key or "warehouse" in key or "отдел" in key:
+                    branch = val
+                    break
+
+        if branch:
+            address = f"{address}, відділення {branch}"
 
         # ---------- STATUS ----------
         status = map_status(o.get("status"), shipping_method)
@@ -94,17 +88,18 @@ def sync_orders():
         order = {
             "woo_id": int(o["id"]),
             "customer_name": customer_name,
-            "phone": billing.get("phone", ""),
+            "phone": billing.get("phone",""),
             "city": city,
             "address": address,
             "product": product,
-            "amount": float(o.get("total", 0)),
+            "amount": float(o.get("total",0)),
             "status": status,
-            "payment_method": o.get("payment_method", "")
+            "shipping_method": shipping_method,
+            "payment_method": o.get("payment_method_title","")
         }
 
         db.create_or_update_order(order)
-        print("DEBUG: сохраняем заказ", o["id"])
+        print("DEBUG:", o["id"])
 
     print("✅ Синхронизация завершена")
 

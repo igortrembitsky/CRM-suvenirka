@@ -7,8 +7,7 @@ def get_orders(per_page=100):
         url,
         auth=(CONSUMER_KEY, CONSUMER_SECRET),
         params={
-            "per_page": per_page,
-            "status": "any"   # <<< ВАЖНО
+            "per_page": per_page
         }
     )
     r.raise_for_status()

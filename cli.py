@@ -1,140 +1,5 @@
 import db
-from woo_api import get_orders
 
-# -----------------------
-# STATUS MAP
-# -----------------------
-
-def map_status(s):
-    if s in ("pending", "failed"):
-        return "Не оплачен"
-
-    if s == "processing":
-        return "Новий"
-
-    if s == "completed":
-        return "Відправлено"
-
-    if s in ("cancelled", "canceled"):
-        return "Скасовано"
-
-    if s == "confirmed":
-        return "Підтверджен"
-
-    if s == "ttn_created":
-        return "Створено ТТН"
-
-    if s == "hold":
-        return "На утриманні"
-
-    if s == "bad":
-        return "Невменяшка"
-
-    if s == "no_answer":
-        return "Недозвонилися"
-
-    return s
-
-# ------------------------------
-# СИНХРОНИЗАЦИЯ С WOOCOMMERCE
-# ------------------------------
-
-def sync_orders():
-    print("SYNC FUNCTION ENTERED")
-
-    orders = get_orders(50)
-    print("ORDERS COUNT:", len(orders))
-
-    for o in orders:
-
-        woo_id = int(o.get("id"))
-
-        # ---------------- PRODUCT ----------------
-        product = ""
-        qty = 1
-
-        if o.get("line_items"):
-            name = o["line_items"][0].get("name", "")
-            qty = o["line_items"][0].get("quantity", 1)
-            product = name.split()[0]
-
-        if qty > 1:
-            product = f"{product} x{qty}"
-
-        # ---------------- CUSTOMER ----------------
-        billing = o.get("billing", {})
-        shipping = o.get("shipping", {})
-
-        first = billing.get("first_name", "")
-        last = billing.get("last_name", "")
-        middle = billing.get("company", "")
-
-        customer_name = f"{first} {last} {middle}".strip()
-
-        phone = billing.get("phone", "")
-        city = shipping.get("city", "")
-        address = shipping.get("address_1", "")
-
-        # ---------------- SHIPPING METHOD ----------------
-        shipping_method = ""
-        if o.get("shipping_lines"):
-            shipping_method = o["shipping_lines"][0].get("method_title", "")
-
-       # print("=== SHIPPING_LINES ===")
-       # print(o.get("shipping_lines"))
-       # print("======================")
-
-        # ---------------- STATUS ----------------
-        woo_status = o.get("status")
-
-        if woo_status == "processing":
-            status = "Новий"
-
-        elif woo_status == "completed":
-            status = "Відправлено"
-
-        elif woo_status == "cancelled":
-            status = "Скасовано"
-
-        elif woo_status == "pending":
-            status = "Не оплачено"
-
-        elif woo_status == "failed":
-            status = "Не оплачено"
-
-        elif woo_status == "on-hold":
-            status = "На утриманні"
-
-        elif woo_status == "confirmed":
-            if "Нова" in shipping_method:
-                status = "Підтверджен НП"
-            elif "Укр" in shipping_method:
-                status = "Підтверджен УП"
-            else:
-                status = "Підтверджен"
-
-        else:
-            status = woo_status
-
-        # ---------------- SAVE ----------------
-        order = {
-            "woo_id": woo_id,
-            "customer_name": customer_name,
-            "phone": phone,
-            "city": city,
-            "address": address,
-            "product": product,
-            "amount": float(o.get("total", 0)),
-            "status": status,
-            "shipping_method": shipping_method
-        }
-
-        db.create_or_update_order(order)
-        print("DEBUG: сохраняем заказ", woo_id)
-
-    print("✅ Синхронизация завершена")
-# -----------------------
-# SHOW LIST
 # -----------------------
 
 def show_orders():
@@ -153,9 +18,6 @@ def show_orders():
             f"{r['product']}"
         )
 
-
-# -----------------------
-# CARD
 # -----------------------
 
 def show_card():
@@ -178,9 +40,6 @@ def show_card():
     print("Статус:", o["status"])
     print("-------------------------")
 
-
-# -----------------------
-# CHANGE STATUS
 # -----------------------
 
 def change_status():
@@ -189,9 +48,6 @@ def change_status():
     db.update_status(int(woo), status)
     print("Статус обновлён")
 
-
-# -----------------------
-# MAIN
 # -----------------------
 
 def main():
@@ -209,6 +65,7 @@ def main():
         c = input("> ")
 
         if c=="1":
+            from sync import sync_orders
             sync_orders()
         elif c=="2":
             show_orders()
@@ -218,7 +75,6 @@ def main():
             change_status()
         elif c=="0":
             break
-
 
 if __name__ == "__main__":
     main()

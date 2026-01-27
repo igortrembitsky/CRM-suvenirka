@@ -32,7 +32,8 @@ def init_db():
         product TEXT,
         amount REAL,
         status TEXT,
-        shipping_method TEXT
+        shipping_method TEXT,
+        payment_method TEXT
     )
     """)
 
@@ -47,8 +48,8 @@ def create_or_update_order(o):
 
     cur.execute("""
     INSERT OR REPLACE INTO orders
-    (woo_id, customer_name, phone, city, address, product, amount, status, shipping_method)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (woo_id, customer_name, phone, city, address, product, amount, status, shipping_method, payment_method)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         o.get("woo_id"),
         o.get("customer_name"),
@@ -58,7 +59,8 @@ def create_or_update_order(o):
         o.get("product"),
         o.get("amount"),
         o.get("status"),
-        o.get("shipping_method")
+        o.get("shipping_method"),
+        o.get("payment_method")
     ))
 
     conn.commit()
