@@ -6,7 +6,10 @@ def get_orders(per_page=100):
     r = requests.get(
         url,
         auth=(CONSUMER_KEY, CONSUMER_SECRET),
-        params={"per_page": per_page}
+        params={
+            "per_page": per_page,
+            "status": "any"   # <<< ВАЖНО
+        }
     )
     r.raise_for_status()
     return r.json()
