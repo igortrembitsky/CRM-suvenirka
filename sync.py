@@ -64,14 +64,15 @@ def sync_orders():
 
     for o in orders:
 
-        # PRODUCT
+        # ---------- PRODUCT ----------
         name = get_value(o, LINE_ITEM_FIELDS["name"])
         qty = get_value(o, LINE_ITEM_FIELDS["quantity"]) or 1
+
         product = name.split()[0] if name else ""
         if qty > 1:
             product = f"{product} x{qty}"
 
-        # CUSTOMER
+        # ---------- CUSTOMER ----------
         first = get_value(o, BILLING_FIELDS["first_name"])
         last = get_value(o, BILLING_FIELDS["last_name"])
         middle = get_value(o, BILLING_FIELDS["company"])
@@ -79,29 +80,37 @@ def sync_orders():
 
         phone = get_value(o, BILLING_FIELDS["phone"])
 
-        # ADDRESS
+        # ---------- SHIPPING BASE ----------
         city = get_value(o, SHIPPING_FIELDS["city"])
         address = get_value(o, SHIPPING_FIELDS["address"])
+        postcode = get_value(o, SHIPPING_FIELDS["postcode"])
 
-        # SHIPPING
+        # ---------- SHIPPING METHOD ----------
         shipping_method = get_value(o, SHIPPING_LINE_FIELDS["method_id"])
 
-        # META
-        branch = ""
+        # ---------- META ----------
+        warehouse_name = ""
         meta = get_value(o, "shipping_lines[0].meta_data")
+
         for m in meta or []:
             if m.get("key") == META_KEYS["warehouse_name"]:
-                branch = m.get("value")
+                warehouse_name = m.get("value")
             if m.get("key") == META_KEYS["city_name"]:
                 city = m.get("value")
 
-        if branch:
-            address = f"{address}, {branch}"
+        # ---------- ADDRESS LOGIC ----------
+        if "nova" in shipping_method:
+            if warehouse_name:
+                address = warehouse_name
 
-        # STATUS
+        elif "ukr" in shipping_method:
+            if postcode:
+                address = f"{address}, {postcode}"
+
+        # ---------- STATUS ----------
         status = map_status(get_value(o, ORDER_FIELDS["status"]), shipping_method)
 
-        # SAVE
+        # ---------- SAVE ----------
         order = {
             "woo_id": int(get_value(o, ORDER_FIELDS["woo_id"])),
             "customer_name": customer_name,
