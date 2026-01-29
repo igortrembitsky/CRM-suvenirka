@@ -37,17 +37,18 @@ ScreenManager:
 
         # --- Кнопки ---
         BoxLayout:
-    size_hint_y: None
-    height: "44dp"
-    spacing: "6dp"
+            size_hint_y: None
+            height: "44dp"
+            spacing: "6dp"
 
-    Button:
-        text: "+ Новый заказ"
-        on_release: root.go_create()
+            Button:
+                text: "+ Новый заказ"
+                on_release: root.go_create()
 
-    Button:
-        text: "Обновить заказы"
-        on_release: app.refresh_all()
+            Button:
+                text: "Обновить заказы"
+                on_release: app.refresh_all()
+
         # --- Список заказов ---
         ScrollView:
             GridLayout:

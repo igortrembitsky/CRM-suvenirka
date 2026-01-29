@@ -1,3 +1,9 @@
 __pycache__/
 *.pyc
 crm.db
+
+.venv/
+.env
+.env.*
+
+*.log
