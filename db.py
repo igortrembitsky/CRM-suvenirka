@@ -25,6 +25,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         woo_id INTEGER UNIQUE,
+        created_at TEXT,
         first_name TEXT,
         last_name TEXT,
         customer_name TEXT,
@@ -35,6 +36,7 @@ def init_db():
         warehouse_ref TEXT,
         product TEXT,
         amount REAL,
+        amount_auto INTEGER,
         status TEXT,
         delivery_service TEXT,
         shipping_method TEXT,
@@ -48,6 +50,12 @@ def init_db():
     cols = {r[1] for r in cur.fetchall()}
     if "comment" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN comment TEXT")
+
+    if "created_at" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN created_at TEXT")
+
+    if "amount_auto" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN amount_auto INTEGER")
 
     if "first_name" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN first_name TEXT")
@@ -75,6 +83,17 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+def delete_order(woo_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM order_items WHERE woo_id=?", (woo_id,))
+    cur.execute("DELETE FROM orders WHERE woo_id=?", (woo_id,))
+
+    conn.commit()
+    conn.close()
+
 # ----------------------------
 
 def create_or_update_order(o):
@@ -83,10 +102,11 @@ def create_or_update_order(o):
 
     cur.execute("""
     INSERT OR REPLACE INTO orders
-    (woo_id, first_name, last_name, customer_name, phone, city, city_ref, address, warehouse_ref, product, amount, status, delivery_service, shipping_method, payment_state, payment_method, comment)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (woo_id, created_at, first_name, last_name, customer_name, phone, city, city_ref, address, warehouse_ref, product, amount, amount_auto, status, delivery_service, shipping_method, payment_state, payment_method, comment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         o.get("woo_id"),
+        o.get("created_at"),
         o.get("first_name"),
         o.get("last_name"),
         o.get("customer_name"),
@@ -97,6 +117,7 @@ def create_or_update_order(o):
         o.get("warehouse_ref"),
         o.get("product"),
         o.get("amount"),
+        o.get("amount_auto"),
         o.get("status"),
         o.get("delivery_service"),
         o.get("shipping_method"),
@@ -132,11 +153,29 @@ def list_orders():
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT woo_id, customer_name, phone, status, amount, product
+        SELECT woo_id, created_at, customer_name, phone, status, amount, product
         FROM orders
         ORDER BY woo_id DESC
     """)
 
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def get_order_items_for_orders(woo_ids):
+    woo_ids = [int(x) for x in (woo_ids or []) if str(x).strip()]
+    if not woo_ids:
+        return []
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    placeholders = ",".join(["?"] * len(woo_ids))
+    cur.execute(
+        f"SELECT woo_id, name, qty FROM order_items WHERE woo_id IN ({placeholders}) ORDER BY woo_id DESC, id ASC",
+        tuple(woo_ids)
+    )
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -178,7 +217,7 @@ def get_order_items(woo_id):
     return rows
 
 
-def replace_order_items(woo_id, items):
+def replace_order_items(woo_id: int, items):
     conn = get_conn()
     cur = conn.cursor()
 
@@ -220,6 +259,7 @@ def update_order_fields(woo_id, fields: dict):
         "payment_method",
         "comment",
         "amount",
+        "amount_auto",
         "product",
     }
 

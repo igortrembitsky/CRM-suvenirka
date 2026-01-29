@@ -78,6 +78,19 @@ def sync_orders():
 
     for o in orders:
 
+        # ---------- ITEMS (from Woo line_items) ----------
+        items = []
+        for li in (o.get("line_items") or []):
+            name_li = (li.get("name") or "").strip()
+            if not name_li:
+                continue
+            qty_li = li.get("quantity") or 1
+            try:
+                qty_li = int(qty_li)
+            except Exception:
+                qty_li = 1
+            items.append({"name": name_li, "qty": qty_li})
+
         # ---------- PRODUCT ----------
         name = get_value(o, LINE_ITEM_FIELDS["name"])
         qty = get_value(o, LINE_ITEM_FIELDS["quantity"]) or 1
@@ -129,6 +142,7 @@ def sync_orders():
         # ---------- SAVE ----------
         order = {
             "woo_id": int(get_value(o, ORDER_FIELDS["woo_id"])),
+            "created_at": get_value(o, ORDER_FIELDS["created_at"]),
             "first_name": first,
             "last_name": last,
             "customer_name": customer_name,
@@ -136,6 +150,7 @@ def sync_orders():
             "city": city,
             "address": address,
             "product": product,
+            "items": items,
             "amount": float(get_value(o, ORDER_FIELDS["total"])),
             "status": status,
             "shipping_method": shipping_method,

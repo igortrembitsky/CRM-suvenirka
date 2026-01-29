@@ -80,9 +80,11 @@ a{
 <table>
 <tr>
     <th>Woo ID</th>
+    <th>Дата/Время</th>
     <th>Клиент</th>
     <th>Телефон</th>
     <th>Статус</th>
+    <th>Товары</th>
     <th>Сумма</th>
 </tr>
 
@@ -94,6 +96,7 @@ a{
     </a>
 </td>
 
+<td>{{ o.get("created_at_display", "") }}</td>
 <td>{{ o["customer_name"] }}</td>
 <td>{{ o["phone"] }}</td>
 
@@ -101,6 +104,7 @@ a{
     <span class="badge {{ o['status_class'] }}">{{ o['status_label'] }}</span>
 </td>
 
+<td>{{ o.get("products_display", "") }}</td>
 <td>{{ o["amount"] }}</td>
 </tr>
 {% endfor %}

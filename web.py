@@ -57,6 +57,62 @@ def _woo_cache_get(key):
 def _woo_cache_set(key, value):
     _WOO_CACHE[key] = (time.time(), value)
 
+
+def _get_woo_price_map():
+    cached = _woo_cache_get(("products", ""))
+    if cached is not None:
+        items = cached
+    else:
+        items = woo_api.get_products(per_page=100, search=None)
+        res = []
+        for p in items or []:
+            res.append({
+                "id": p.get("id"),
+                "name": p.get("name") or "",
+                "price": p.get("price") or p.get("regular_price") or "",
+            })
+        _woo_cache_set(("products", ""), res)
+        items = res
+
+    price_map = {}
+    for p in items or []:
+        name = (p.get("name") or "").strip()
+        if not name:
+            continue
+        try:
+            price = float(str(p.get("price") or "").replace(",", "."))
+        except Exception:
+            continue
+        price_map[name] = price
+    return price_map
+
+
+def compute_items_total(items):
+    price_map = _get_woo_price_map()
+    total = 0.0
+    found_any = False
+
+    for it in items or []:
+        name = (it.get("name") or "").strip()
+        if not name:
+            continue
+        price = price_map.get(name)
+        if price is None:
+            continue
+
+        try:
+            qty = int(it.get("qty") or 1)
+        except Exception:
+            qty = 1
+
+        total += price * qty
+        found_any = True
+
+    if not found_any:
+        return None
+
+    return round(total, 2)
+
 # Единый справочник статусов (код -> отображение + css)
 STATUS_BADGES = {
     "new": {"label": "Новий", "class": "badge--new"},
@@ -81,6 +137,7 @@ def normalize_status(raw_status: str):
     # --- codes from Woo / internal ---
     if sl in ("new", "processing"):
         return "new"
+
     if sl in ("not_paid", "pending"):
         return "not_paid"
     if sl in ("hold", "on-hold"):
@@ -123,10 +180,96 @@ def normalize_status(raw_status: str):
     return "new"
 
 
+def format_created_at(raw: str):
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    # Woo usually returns ISO like 2026-01-29T18:22:11
+    if "T" in s:
+        s = s.replace("T", " ")
+    # keep YYYY-MM-DD HH:MM
+    return s[:16]
+
+
+def format_products_for_table(items, product_fallback: str):
+    order = []
+    totals = {}
+    for it in items or []:
+        name = (it.get("name") or "").strip()
+        if not name:
+            continue
+        first = name.split()[0]
+        try:
+            qty = int(it.get("qty") or 1)
+        except Exception:
+            qty = 1
+        if first not in totals:
+            order.append(first)
+            totals[first] = 0
+        totals[first] += qty
+
+    if totals:
+        parts = []
+        for first in order:
+            qty = totals.get(first, 0) or 0
+            if qty > 1:
+                parts.append(f"{first} x{qty}")
+            else:
+                parts.append(first)
+        return ", ".join(parts)
+
+    # fallback: orders.product like "Foo x2; Bar x1"
+    pf = (product_fallback or "").strip()
+    if not pf:
+        return ""
+    order = []
+    totals = {}
+    for chunk in pf.split(";"):
+        c = chunk.strip()
+        if not c:
+            continue
+        tokens = c.split()
+        if not tokens:
+            continue
+        first = tokens[0]
+        qty = None
+        for t in tokens[1:]:
+            tl = t.lower()
+            if tl.startswith("x") and tl[1:].isdigit():
+                qty = int(tl[1:])
+                break
+        if first not in totals:
+            order.append(first)
+            totals[first] = 0
+        totals[first] += qty if (qty and qty > 0) else 1
+
+    parts = []
+    for first in order:
+        qty = totals.get(first, 0) or 0
+        if qty > 1:
+            parts.append(f"{first} x{qty}")
+        else:
+            parts.append(first)
+    return ", ".join(parts)
+
+
 @app.route("/")
 def index():
     raw_orders = db.list_orders()
     orders = []
+
+    woo_ids = []
+    for o in raw_orders:
+        try:
+            woo_ids.append(int(o["woo_id"]))
+        except Exception:
+            pass
+
+    items_rows = db.get_order_items_for_orders(woo_ids)
+    items_by_woo = {}
+    for r in items_rows:
+        wid = r["woo_id"]
+        items_by_woo.setdefault(wid, []).append({"name": r["name"], "qty": r["qty"]})
 
     for o in raw_orders:
         order = dict(o)
@@ -136,6 +279,12 @@ def index():
         order["status_code"] = code
         order["status_label"] = badge["label"]
         order["status_class"] = badge["class"]
+        order["created_at_display"] = format_created_at(order.get("created_at"))
+        wid = order.get("woo_id")
+        order["products_display"] = format_products_for_table(
+            items_by_woo.get(wid, []),
+            order.get("product")
+        )
         orders.append(order)
 
     return render_template(
@@ -292,14 +441,6 @@ def order_card(woo_id: int):
         delivery_service = (request.form.get("delivery_service") or "").strip()
         payment_state = (request.form.get("payment_state") or "").strip()
 
-        amount_raw = (request.form.get("amount") or "").strip().replace(",", ".")
-        amount = None
-        if amount_raw:
-            try:
-                amount = float(amount_raw)
-            except Exception:
-                amount = None
-
         items_names = request.form.getlist("item_name")
         items_qtys = request.form.getlist("item_qty")
         items = []
@@ -321,6 +462,21 @@ def order_card(woo_id: int):
                 product_summary_parts.append(it["name"])
         product_summary = "; ".join(product_summary_parts)
 
+        amount_auto = (request.form.get("amount_auto") or "") == "1"
+        amount_manual = None
+        amount_raw = (request.form.get("amount") or "").strip().replace(",", ".")
+        if amount_raw:
+            try:
+                amount_manual = float(amount_raw)
+            except Exception:
+                amount_manual = None
+
+        amount_calc = compute_items_total(items)
+        if amount_auto:
+            amount = amount_calc if amount_calc is not None else amount_manual
+        else:
+            amount = amount_manual if amount_manual is not None else amount_calc
+
         customer_name = f"{first_name} {last_name}".strip()
         db.update_order_fields(
             woo_id,
@@ -339,12 +495,16 @@ def order_card(woo_id: int):
                 "payment_state": payment_state,
                 "product": product_summary,
                 "amount": amount,
+                "amount_auto": 1 if amount_auto else 0,
             },
         )
         db.replace_order_items(woo_id, items)
         return redirect(url_for("order_card", woo_id=woo_id, saved=1))
 
     o = dict(row)
+
+    if o.get("amount_auto") is None:
+        o["amount_auto"] = 1
 
     if not (o.get("delivery_service") or "").strip():
         sm = (o.get("shipping_method") or "").lower()
@@ -380,6 +540,12 @@ def order_card(woo_id: int):
         status_badges=STATUS_BADGES,
         saved=saved,
     )
+
+
+@app.route("/order/<int:woo_id>/delete", methods=["POST"])
+def delete_order(woo_id: int):
+    db.delete_order(woo_id)
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":

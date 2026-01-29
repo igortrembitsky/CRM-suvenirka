@@ -17,6 +17,7 @@ textarea{min-height:110px; resize:vertical;}
 button{padding:10px 14px; border:0; cursor:pointer; font-weight:700;}
 .btn-save{background:#222; color:#fff;}
 .btn-add{background:#e0e0e0; color:#111;}
+.btn-delete{background:#7b1f2a; color:#fff; margin-left:auto;}
 .banner{padding:10px; margin:10px 0; background:#e8f5e9; border:1px solid #c8e6c9;}
 
 .ac-wrap{position:relative;}
@@ -121,8 +122,11 @@ button{padding:10px 14px; border:0; cursor:pointer; font-weight:700;}
       <div>
         <label>Сумма</label>
         <input type="text" id="amountInput" name="amount" value="{{ o.get('amount','') }}" />
-        <div class="actions" style="margin-top:8px;">
-          <button type="button" class="btn-add" onclick="recalcTotal()">Пересчитать сумму</button>
+        <div class="small">
+          <label style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+            <input type="checkbox" id="amountAuto" name="amount_auto" value="1" {% if o.get('amount_auto', 1) %}checked{% endif %} />
+            Авто-сумма (по товарам)
+          </label>
         </div>
       </div>
       <div>
@@ -156,6 +160,13 @@ button{padding:10px 14px; border:0; cursor:pointer; font-weight:700;}
       <div class="actions">
         <button type="button" class="btn-add" onclick="addRow()">+ Добавить строку</button>
         <button type="submit" class="btn-save">Сохранить</button>
+        <button
+          type="submit"
+          class="btn-delete"
+          formmethod="post"
+          formaction="{{ url_for('delete_order', woo_id=o.get('woo_id')) }}"
+          onclick="return confirm('Удалить заказ {{ o.get('woo_id') }}?');"
+        >Удалить</button>
       </div>
     </div>
 
@@ -209,6 +220,21 @@ const cityList = document.getElementById('cityList');
 
 const deliveryService = document.getElementById('deliveryService');
 const amountInput = document.getElementById('amountInput');
+const amountAuto = document.getElementById('amountAuto');
+
+function syncAmountMode(){
+  if(!amountInput || !amountAuto) return;
+  if(amountAuto.checked){
+    amountInput.readOnly = true;
+    recalcTotal();
+  } else {
+    amountInput.readOnly = false;
+  }
+}
+
+if(amountAuto){
+  amountAuto.addEventListener('change', syncAmountMode);
+}
 
 const whInput = document.getElementById('whInput');
 const whRef = document.getElementById('whRef');
@@ -282,10 +308,16 @@ async function loadProducts(){
       window.__productsMap[p.name] = price;
     }
   });
+
+  bindItemsAutoCalc();
+  syncAmountMode();
 }
 loadProducts();
 
 function recalcTotal(){
+  if(amountAuto && !amountAuto.checked){
+    return;
+  }
   const map = window.__productsMap || {};
   const names = document.getElementsByName('item_name');
   const qtys = document.getElementsByName('item_qty');
@@ -303,6 +335,19 @@ function recalcTotal(){
   }
 }
 
+function bindItemsAutoCalc(){
+  const names = document.getElementsByName('item_name');
+  const qtys = document.getElementsByName('item_qty');
+  for(let i=0;i<names.length;i++){
+    names[i].addEventListener('input', debounce(recalcTotal, 150));
+    names[i].addEventListener('change', debounce(recalcTotal, 150));
+  }
+  for(let i=0;i<qtys.length;i++){
+    qtys[i].addEventListener('input', debounce(recalcTotal, 150));
+    qtys[i].addEventListener('change', debounce(recalcTotal, 150));
+  }
+}
+
 function addRow(){
   var tbl = document.getElementById('itemsTable');
   var row = tbl.insertRow(-1);
@@ -312,10 +357,14 @@ function addRow(){
   c1.innerHTML = '<input type="text" name="item_name" list="productsList" value="" />';
   c2.innerHTML = '<input type="number" name="item_qty" value="1" min="1" />';
   c3.innerHTML = '<button type="button" onclick="removeRow(this)">×</button>';
+
+  bindItemsAutoCalc();
+  recalcTotal();
 }
 function removeRow(btn){
   var row = btn.closest('tr');
   if(row){ row.remove(); }
+  recalcTotal();
 }
 </script>
 </body>
