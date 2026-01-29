@@ -21,40 +21,40 @@ def map_status(woo_status, shipping_method):
     shipping_method = (shipping_method or "").lower()
 
     if woo_status == "processing":
-        return "Новый"
+        return "Новий"
 
     if woo_status == "pending":
-        return "Не оплачен"
+        return "Не оплачено"
 
     if woo_status == "pay":
         return "Оплачено"
 
     if woo_status == "confirmed":
         if "nova" in shipping_method:
-            return "Подтверждён НП"
+            return "Підтверджен НП"
         if "ukr" in shipping_method:
-            return "Подтверждён УП"
-        return "Подтверждён"
+            return "Підтверджен УП"
+        return "Підтверджено"
 
     if woo_status == "ttn":
-        return "Создана ТТН"
+        return "Створено ТТН"
 
     if woo_status == "completed":
-        return "Отправлено"
+        return "Відправлено"
 
     if woo_status == "on-hold":
-        return "На удержании"
+        return "На утриманні"
 
     if woo_status == "cancelled":
-        return "Отменён"
+        return "Скасовано"
 
     if woo_status == "crazy":
-        return "Невменяшка"
+        return "Неадекват"
 
     if woo_status == "na":
         return "Недозвонилися"
 
-    return "Новый"
+    return "Новий"
 
 # ---------------------------------
 

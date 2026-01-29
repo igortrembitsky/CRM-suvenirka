@@ -37,15 +37,17 @@ tr:nth-child(even){
 
 /* Цвета статусов */
 
-.status-new { color: green; font-weight:bold; }
-.status-canceled { color: gray; font-weight:bold; }
-.status-np { color: blue; font-weight:bold; }
-.status-up { color: #03a9f4; font-weight:bold; }
-.status-ttn { color: orange; font-weight:bold; }
-.status-shipped { color: purple; font-weight:bold; }
-.status-hold { color: #fbc02d; font-weight:bold; }
-.status-bad { color: brown; font-weight:bold; }
-.status-notpaid { color: #6d1b1b; font-weight:bold; }
+.badge{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700;}
+.badge--new{background:#1976d2; color:#fff;}
+.badge--not-paid{background:#d32f2f; color:#fff;}
+.badge--hold{background:#cddc39; color:#1b1b1b;}
+.badge--ttn{background:#fb8c00; color:#fff;}
+.badge--confirmed-np{background:#1976d2; color:#fff;}
+.badge--confirmed-up{background:#03a9f4; color:#00324a;}
+.badge--shipped{background:#7b1fa2; color:#fff;}
+.badge--canceled{background:#616161; color:#fff;}
+.badge--bad{background:#212121; color:#fff;}
+.badge--paid{background:#2e7d32; color:#fff;}
 
 a{
     text-decoration:none;
@@ -79,18 +81,8 @@ a{
 <td>{{ o["customer_name"] }}</td>
 <td>{{ o["phone"] }}</td>
 
-<td class="
-{% if o['status']=='Новый' %}status-new{% endif %}
-{% if o['status']=='Отменён' %}status-canceled{% endif %}
-{% if o['status']=='Подтверждён НП' %}status-np{% endif %}
-{% if o['status']=='Подтверждён УП' %}status-up{% endif %}
-{% if o['status']=='Создана ТТН' %}status-ttn{% endif %}
-{% if o['status']=='Отправлено' %}status-shipped{% endif %}
-{% if o['status']=='На удержании' %}status-hold{% endif %}
-{% if o['status']=='Невменяшка' %}status-bad{% endif %}
-{% if o['status']=='Не оплачен' %}status-notpaid{% endif %}
-">
-{{ o["status"] }}
+<td>
+    <span class="badge {{ o['status_class'] }}">{{ o['status_label'] }}</span>
 </td>
 
 <td>{{ o["amount"] }}</td>
