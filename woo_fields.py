@@ -14,7 +14,8 @@ ORDER_FIELDS = {
     "currency": "currency",
     "created_at": "date_created",
     "payment_method_id": "payment_method",
-    "payment_method_title": "payment_method_title"
+    "payment_method_title": "payment_method_title",
+    "customer_note": "customer_note"
 }
 
 # =====================================================

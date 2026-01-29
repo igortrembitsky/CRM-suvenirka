@@ -124,6 +124,8 @@ def sync_orders():
         # ---------- STATUS ----------
         status = map_status(o.get("status"), shipping_method)
 
+        comment = get_value(o, ORDER_FIELDS["customer_note"])
+
         # ---------- SAVE ----------
         order = {
             "woo_id": int(get_value(o, ORDER_FIELDS["woo_id"])),
@@ -135,7 +137,8 @@ def sync_orders():
             "amount": float(get_value(o, ORDER_FIELDS["total"])),
             "status": status,
             "shipping_method": shipping_method,
-            "payment_method": get_value(o, ORDER_FIELDS["payment_method_title"])
+            "payment_method": get_value(o, ORDER_FIELDS["payment_method_title"]),
+            "comment": comment
         }
 
         db.create_or_update_order(order)

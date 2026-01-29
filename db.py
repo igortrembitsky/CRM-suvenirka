@@ -33,9 +33,15 @@ def init_db():
         amount REAL,
         status TEXT,
         shipping_method TEXT,
-        payment_method TEXT
+        payment_method TEXT,
+        comment TEXT
     )
     """)
+
+    cur.execute("PRAGMA table_info(orders)")
+    cols = {r[1] for r in cur.fetchall()}
+    if "comment" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN comment TEXT")
 
     conn.commit()
     conn.close()
@@ -48,8 +54,8 @@ def create_or_update_order(o):
 
     cur.execute("""
     INSERT OR REPLACE INTO orders
-    (woo_id, customer_name, phone, city, address, product, amount, status, shipping_method, payment_method)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (woo_id, customer_name, phone, city, address, product, amount, status, shipping_method, payment_method, comment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         o.get("woo_id"),
         o.get("customer_name"),
@@ -60,7 +66,8 @@ def create_or_update_order(o):
         o.get("amount"),
         o.get("status"),
         o.get("shipping_method"),
-        o.get("payment_method")
+        o.get("payment_method"),
+        o.get("comment")
     ))
 
     conn.commit()

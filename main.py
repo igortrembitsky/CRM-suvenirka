@@ -74,6 +74,7 @@ class OrdersListScreen(Screen):
         layout.add_widget(Label(text=f"Оплата: {order['payment_method']}"))
         layout.add_widget(Label(text=f"Сумма: {order['amount']} грн"))
         layout.add_widget(Label(text=f"Статус: {order['status']}"))
+        layout.add_widget(Label(text=f"Коментарии: {order['comment'] or '—'}"))
 
         close_btn = Button(text="Закрыть", size_hint_y=None, height=40)
         layout.add_widget(close_btn)
@@ -96,6 +97,8 @@ class OrdersListScreen(Screen):
 
 class CRMApp(App):
     def build(self):
+        db.set_db_path("crm.db")
+        db.init_db()
         Builder.load_file("crm.kv")
         sm = ScreenManager()
         sm.add_widget(OrdersListScreen(name="orders"))

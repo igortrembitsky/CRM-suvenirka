@@ -61,6 +61,22 @@ a{
 
 <h1>CRM Suvenirka</h1>
 
+<div style="max-width: 100%; margin: 10px 0;">
+    <form method="post" action="/sync" style="display:inline-block; margin-right:10px;">
+        <button type="submit" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;">
+            Обновить заказы
+        </button>
+    </form>
+
+    {% if last_sync_at %}
+        <span style="font-size:13px; color:#333;">Последняя синхронизация: {{ last_sync_at }}</span>
+    {% endif %}
+
+    {% if last_sync_error %}
+        <div style="margin-top:8px; color:#b00020; font-size:13px;">Ошибка синхронизации: {{ last_sync_error }}</div>
+    {% endif %}
+</div>
+
 <table>
 <tr>
     <th>Woo ID</th>

@@ -1,11 +1,17 @@
-from flask import Flask, render_template, render_template_string
+from flask import Flask, render_template, render_template_string, redirect, url_for
 import db
+import threading
+import time
 
 app = Flask(__name__)
 
 DB_FILE = "crm.db"
 db.set_db_path(DB_FILE)
 db.init_db()
+
+_SYNC_LOCK = threading.Lock()
+_LAST_SYNC_AT = None
+_LAST_SYNC_ERROR = None
 
 # Единый справочник статусов (код -> отображение + css)
 STATUS_BADGES = {
@@ -88,7 +94,32 @@ def index():
         order["status_class"] = badge["class"]
         orders.append(order)
 
-    return render_template("index.html", orders=orders)
+    return render_template(
+        "index.html",
+        orders=orders,
+        last_sync_at=_LAST_SYNC_AT,
+        last_sync_error=_LAST_SYNC_ERROR
+    )
+
+
+@app.post("/sync")
+def sync_now():
+    global _LAST_SYNC_AT, _LAST_SYNC_ERROR
+
+    if not _SYNC_LOCK.acquire(blocking=False):
+        return "Синхронизация уже выполняется", 409
+
+    try:
+        _LAST_SYNC_ERROR = None
+        from sync import sync_orders
+        sync_orders()
+        _LAST_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        _LAST_SYNC_ERROR = str(e)
+    finally:
+        _SYNC_LOCK.release()
+
+    return redirect(url_for("index"))
 
 
 @app.route("/order/<int:woo_id>")
@@ -116,6 +147,7 @@ def order_card(woo_id: int):
             .card{max-width:720px; margin:24px auto; background:white; padding:16px; border:1px solid #ddd;}
             .row{margin:6px 0;}
             a{text-decoration:none; color:#0066cc; font-weight:bold;}
+            .comment{margin-top:12px; padding:10px; background:#fafafa; border:1px solid #e6e6e6; white-space:pre-wrap;}
 
             .badge{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700;}
             .badge--new{background:#1976d2; color:#fff;}
@@ -143,6 +175,8 @@ def order_card(woo_id: int):
             <div class=\"row\"><b>Доставка:</b> {{ o['shipping_method'] }}</div>
             <div class=\"row\"><b>Сумма:</b> {{ o['amount'] }}</div>
             <div class=\"row\"><b>Статус:</b> <span class=\"badge {{ o['status_class'] }}\">{{ o['status_label'] }}</span></div>
+            <div class=\"row\"><b>Коментарии:</b></div>
+            <div class=\"comment\">{{ (o.get('comment') or '—') }}</div>
         </div>
     </body>
     </html>
