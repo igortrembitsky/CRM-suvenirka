@@ -129,6 +129,8 @@ def sync_orders():
         # ---------- SAVE ----------
         order = {
             "woo_id": int(get_value(o, ORDER_FIELDS["woo_id"])),
+            "first_name": first,
+            "last_name": last,
             "customer_name": customer_name,
             "phone": phone,
             "city": city,

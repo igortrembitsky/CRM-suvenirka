@@ -25,14 +25,20 @@ def init_db():
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         woo_id INTEGER UNIQUE,
+        first_name TEXT,
+        last_name TEXT,
         customer_name TEXT,
         phone TEXT,
         city TEXT,
+        city_ref TEXT,
         address TEXT,
+        warehouse_ref TEXT,
         product TEXT,
         amount REAL,
         status TEXT,
+        delivery_service TEXT,
         shipping_method TEXT,
+        payment_state TEXT,
         payment_method TEXT,
         comment TEXT
     )
@@ -42,6 +48,29 @@ def init_db():
     cols = {r[1] for r in cur.fetchall()}
     if "comment" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN comment TEXT")
+
+    if "first_name" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN first_name TEXT")
+    if "last_name" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN last_name TEXT")
+    if "city_ref" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN city_ref TEXT")
+    if "warehouse_ref" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN warehouse_ref TEXT")
+    if "delivery_service" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN delivery_service TEXT")
+    if "payment_state" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN payment_state TEXT")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        woo_id INTEGER,
+        name TEXT,
+        qty INTEGER,
+        FOREIGN KEY (woo_id) REFERENCES orders (woo_id)
+    )
+    """)
 
     conn.commit()
     conn.close()
@@ -54,21 +83,44 @@ def create_or_update_order(o):
 
     cur.execute("""
     INSERT OR REPLACE INTO orders
-    (woo_id, customer_name, phone, city, address, product, amount, status, shipping_method, payment_method, comment)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (woo_id, first_name, last_name, customer_name, phone, city, city_ref, address, warehouse_ref, product, amount, status, delivery_service, shipping_method, payment_state, payment_method, comment)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         o.get("woo_id"),
+        o.get("first_name"),
+        o.get("last_name"),
         o.get("customer_name"),
         o.get("phone"),
         o.get("city"),
+        o.get("city_ref"),
         o.get("address"),
+        o.get("warehouse_ref"),
         o.get("product"),
         o.get("amount"),
         o.get("status"),
+        o.get("delivery_service"),
         o.get("shipping_method"),
+        o.get("payment_state"),
         o.get("payment_method"),
         o.get("comment")
     ))
+
+    items = o.get("items")
+    if items is not None:
+        cur.execute("DELETE FROM order_items WHERE woo_id=?", (o.get("woo_id"),))
+        for it in items:
+            name = (it.get("name") or "").strip()
+            if not name:
+                continue
+            qty = it.get("qty")
+            try:
+                qty = int(qty)
+            except Exception:
+                qty = 1
+            cur.execute(
+                "INSERT INTO order_items (woo_id, name, qty) VALUES (?, ?, ?)",
+                (o.get("woo_id"), name, qty)
+            )
 
     conn.commit()
     conn.close()
@@ -108,6 +160,88 @@ def update_status(woo_id, status):
     cur = conn.cursor()
 
     cur.execute("UPDATE orders SET status=? WHERE woo_id=?", (status, woo_id))
+
+    conn.commit()
+    conn.close()
+
+
+def get_order_items(woo_id):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT name, qty FROM order_items WHERE woo_id=? ORDER BY id ASC",
+        (woo_id,)
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def replace_order_items(woo_id, items):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM order_items WHERE woo_id=?", (woo_id,))
+
+    for it in items or []:
+        name = (it.get("name") or "").strip()
+        if not name:
+            continue
+        qty = it.get("qty")
+        try:
+            qty = int(qty)
+        except Exception:
+            qty = 1
+
+        cur.execute(
+            "INSERT INTO order_items (woo_id, name, qty) VALUES (?, ?, ?)",
+            (woo_id, name, qty)
+        )
+
+    conn.commit()
+    conn.close()
+
+
+def update_order_fields(woo_id, fields: dict):
+    allowed = {
+        "first_name",
+        "last_name",
+        "customer_name",
+        "phone",
+        "city",
+        "city_ref",
+        "address",
+        "warehouse_ref",
+        "status",
+        "delivery_service",
+        "shipping_method",
+        "payment_state",
+        "payment_method",
+        "comment",
+        "amount",
+        "product",
+    }
+
+    updates = []
+    values = []
+
+    for k, v in (fields or {}).items():
+        if k not in allowed:
+            continue
+        updates.append(f"{k}=?")
+        values.append(v)
+
+    if not updates:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        f"UPDATE orders SET {', '.join(updates)} WHERE woo_id=?",
+        (*values, woo_id)
+    )
 
     conn.commit()
     conn.close()
