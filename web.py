@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, redirect, url_for, request, jsonify
+from flask import Flask, render_template, render_template_string, redirect, url_for, request, jsonify, send_from_directory, abort
 import db
 import threading
 import time
@@ -16,16 +16,85 @@ _SYNC_LOCK = threading.Lock()
 _LAST_SYNC_AT = None
 _LAST_SYNC_ERROR = None
 
+_STATUS_SYNC_LOCK = threading.Lock()
+_LAST_STATUS_SYNC_AT = None
+_LAST_STATUS_SYNC_ERROR = None
+
 NP_API_URL = "https://api.novaposhta.ua/v2.0/json/"
 NP_API_KEY = os.environ.get("NP_API_KEY")
 
 _NP_CACHE = {}
 
 
+CRM_TO_WOO_STATUS = {
+    "new": "processing",
+    "not_paid": "pending",
+    "paid": "pay",
+    "hold": "on-hold",
+    "ttn": "ttn",
+    "confirmed_np": "confirmed",
+    "confirmed_up": "confirmed",
+    "shipped": "completed",
+    "canceled": "cancelled",
+    "bad": "crazy",
+}
+
+
+def map_crm_status_to_woo(raw_status: str):
+    code = normalize_status(raw_status)
+    return CRM_TO_WOO_STATUS.get(code)
+
+
 PAYMENT_STATE_LABELS = {
     "paid": "Оплачено",
     "cod": "Готівка при отриманні",
+    "card": "Оплата на карту",
+    "not_paid": "Не оплачено",
 }
+
+
+PAYMENT_STATE_ICONS = {
+    "cod": "np.png",
+    "paid": "liq.png",
+    "card": "card.png",
+    "not_paid": "notpay.png",
+}
+
+
+def payment_display(order: dict):
+    # 1) If payment_state explicitly set in CRM - always show it in table
+    ps = (order.get("payment_state") or "").strip().lower()
+    if ps in PAYMENT_STATE_LABELS:
+        return PAYMENT_STATE_LABELS.get(ps, ""), PAYMENT_STATE_ICONS.get(ps)
+
+    # 2) If order status is 'not paid' - show it only when payment_state is empty/unknown
+    try:
+        st_code = normalize_status(order.get("status"))
+    except Exception:
+        st_code = ""
+    if st_code == "not_paid":
+        return "Не оплачено", PAYMENT_STATE_ICONS.get("not_paid")
+
+    # 4) Fallback: infer from payment method/title
+    pm = (order.get("payment_method") or "").strip().lower()
+    pmt = (order.get("payment_method_title") or "").strip().lower()
+    s = " ".join([pm, pmt]).strip()
+    if not s:
+        return "", None
+
+    # cash on delivery
+    if "cod" in s or "cash" in s or "гот" in s or "нал" in s or "при получ" in s or "при отрим" in s:
+        return PAYMENT_STATE_LABELS["cod"], PAYMENT_STATE_ICONS.get("cod")
+
+    # paid online / paid
+    if "liqpay" in s or "fondy" in s or "stripe" in s or "paypal" in s or "оплат" in s:
+        return PAYMENT_STATE_LABELS["paid"], PAYMENT_STATE_ICONS.get("paid")
+
+    # explicit card transfer (only if clearly mentioned)
+    if "на карту" in s or "карт" in s:
+        return PAYMENT_STATE_LABELS["card"], PAYMENT_STATE_ICONS.get("card")
+
+    return "", None
 
 
 def payment_state_label(order: dict):
@@ -45,11 +114,55 @@ def payment_state_label(order: dict):
     if "cod" in s or "cash" in s or "гот" in s or "нал" in s or "при получ" in s or "при отрим" in s:
         return PAYMENT_STATE_LABELS["cod"]
 
+    # explicit card transfer
+    if "card" in s or "карт" in s:
+        return PAYMENT_STATE_LABELS["card"]
+
     # heuristic: any explicit online/paid method
-    if "card" in s or "liqpay" in s or "fondy" in s or "stripe" in s or "paypal" in s or "оплат" in s:
+    if "liqpay" in s or "fondy" in s or "stripe" in s or "paypal" in s or "оплат" in s:
         return PAYMENT_STATE_LABELS["paid"]
 
     return ""
+
+
+def payment_state_icon_filename(order: dict):
+    ps = (order.get("payment_state") or "").strip().lower()
+    if ps in PAYMENT_STATE_ICONS:
+        return PAYMENT_STATE_ICONS.get(ps)
+    return None
+
+
+def infer_payment_state(order: dict):
+    try:
+        st_code = normalize_status(order.get("status"))
+    except Exception:
+        st_code = ""
+    if st_code == "not_paid":
+        return "not_paid"
+
+    pm = (order.get("payment_method") or "").strip().lower()
+    pmt = (order.get("payment_method_title") or "").strip().lower()
+    s = " ".join([pm, pmt]).strip()
+    if not s:
+        return ""
+
+    if "cod" in s or "cash" in s or "гот" in s or "нал" in s or "при получ" in s or "при отрим" in s:
+        return "cod"
+    if "liqpay" in s or "fondy" in s or "stripe" in s or "paypal" in s or "оплат" in s:
+        return "paid"
+    if "на карту" in s or "карт" in s:
+        return "card"
+    return ""
+
+
+@app.get("/assets/<path:filename>")
+def asset_file(filename: str):
+    # serve only explicitly allowed icon files from project root
+    allowed = {"np.png", "liq.png", "card.png", "notpay.png"}
+    if filename not in allowed:
+        return abort(404)
+    root = os.path.abspath(os.path.dirname(__file__))
+    return send_from_directory(root, filename)
 _WOO_CACHE = {}
 
 
@@ -311,7 +424,9 @@ def index():
         order["status_class"] = badge["class"]
         order["created_at_display"] = format_created_at(order.get("created_at"))
 
-        order["payment_state_label"] = payment_state_label(order)
+        pay_label, icon_name = payment_display(order)
+        order["payment_state_label"] = pay_label
+        order["payment_icon_url"] = url_for("asset_file", filename=icon_name) if icon_name else ""
 
         wid = order.get("woo_id")
         order["products_display"] = format_products_for_table(
@@ -324,7 +439,9 @@ def index():
         "index.html",
         orders=orders,
         last_sync_at=_LAST_SYNC_AT,
-        last_sync_error=_LAST_SYNC_ERROR
+        last_sync_error=_LAST_SYNC_ERROR,
+        last_status_sync_at=_LAST_STATUS_SYNC_AT,
+        last_status_sync_error=_LAST_STATUS_SYNC_ERROR,
     )
 
 
@@ -344,6 +461,42 @@ def sync_now():
         _LAST_SYNC_ERROR = str(e)
     finally:
         _SYNC_LOCK.release()
+
+    return redirect(url_for("index"))
+
+
+@app.post("/sync_statuses")
+def sync_statuses_now():
+    global _LAST_STATUS_SYNC_AT, _LAST_STATUS_SYNC_ERROR
+
+    if not _STATUS_SYNC_LOCK.acquire(blocking=False):
+        return "Синхронизация статусов уже выполняется", 409
+
+    ok = 0
+    failed = 0
+    try:
+        _LAST_STATUS_SYNC_ERROR = None
+
+        orders = db.list_orders()
+        for o in orders:
+            try:
+                woo_id = int(o["woo_id"])
+            except Exception:
+                continue
+            woo_status = map_crm_status_to_woo(o["status"])
+            if not woo_status:
+                continue
+            try:
+                woo_api.update_order_status(woo_id, woo_status)
+                ok += 1
+            except Exception:
+                failed += 1
+
+        _LAST_STATUS_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S") + f" (ok={ok}, fail={failed})"
+    except Exception as e:
+        _LAST_STATUS_SYNC_ERROR = str(e)
+    finally:
+        _STATUS_SYNC_LOCK.release()
 
     return redirect(url_for("index"))
 
@@ -474,6 +627,9 @@ def order_card(woo_id: int):
         delivery_service = (request.form.get("delivery_service") or "").strip()
         payment_state = (request.form.get("payment_state") or "").strip()
 
+        if (payment_state or "").strip().lower() == "card" and (status_code or "").strip().lower() in ("not_paid", "pending"):
+            status_code = "new"
+
         items_names = request.form.getlist("item_name")
         items_qtys = request.form.getlist("item_qty")
         items = []
@@ -549,7 +705,8 @@ def order_card(woo_id: int):
             o["delivery_service"] = "np"
 
     if not (o.get("payment_state") or "").strip():
-        o["payment_state"] = "cod"
+        inferred = infer_payment_state(o)
+        o["payment_state"] = inferred if inferred else "cod"
     items_rows = db.get_order_items(woo_id)
     items = [dict(r) for r in items_rows]
     if not items:

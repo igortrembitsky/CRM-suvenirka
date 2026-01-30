@@ -117,8 +117,10 @@ button{padding:10px 14px; border:0; cursor:pointer; font-weight:700;}
       <div>
         <label>Оплата</label>
         <select name="payment_state">
+          <option value="not_paid" {% if o.get('payment_state') == 'not_paid' %}selected{% endif %}>Не оплачено</option>
           <option value="cod" {% if o.get('payment_state') == 'cod' %}selected{% endif %}>Готівка при отриманні</option>
           <option value="paid" {% if o.get('payment_state') == 'paid' %}selected{% endif %}>Оплачено</option>
+          <option value="card" {% if o.get('payment_state') == 'card' %}selected{% endif %}>Оплата на карту</option>
         </select>
       </div>
 
@@ -226,6 +228,7 @@ const amountInput = document.getElementById('amountInput');
 const amountAuto = document.getElementById('amountAuto');
 const statusSelect = document.getElementById('statusSelect');
 const statusPreview = document.getElementById('statusPreview');
+const paymentState = document.querySelector('select[name="payment_state"]');
 
 function syncAmountMode(){
   if(!amountInput || !amountAuto) return;
@@ -253,6 +256,15 @@ function syncStatusPreview(){
 if(statusSelect){
   statusSelect.addEventListener('change', syncStatusPreview);
   syncStatusPreview();
+}
+
+if(paymentState){
+  paymentState.addEventListener('change', function(){
+    if((paymentState.value || '').toLowerCase() === 'card' && statusSelect){
+      statusSelect.value = 'new';
+      syncStatusPreview();
+    }
+  });
 }
 
 const whInput = document.getElementById('whInput');

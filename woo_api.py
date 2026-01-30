@@ -14,6 +14,18 @@ def get_orders(per_page=100):
     return r.json()
 
 
+def update_order_status(order_id: int, status: str):
+    url = f"{WOO_URL}/wp-json/wc/v3/orders/{int(order_id)}"
+    r = requests.put(
+        url,
+        auth=(CONSUMER_KEY, CONSUMER_SECRET),
+        json={"status": status},
+        timeout=20,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
 def get_products(per_page=50, search=None):
     url = f"{WOO_URL}/wp-json/wc/v3/products"
     params = {
