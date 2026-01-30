@@ -20,6 +20,36 @@ NP_API_URL = "https://api.novaposhta.ua/v2.0/json/"
 NP_API_KEY = os.environ.get("NP_API_KEY")
 
 _NP_CACHE = {}
+
+
+PAYMENT_STATE_LABELS = {
+    "paid": "Оплачено",
+    "cod": "Готівка при отриманні",
+}
+
+
+def payment_state_label(order: dict):
+    ps = (order.get("payment_state") or "").strip().lower()
+    if ps in PAYMENT_STATE_LABELS:
+        return PAYMENT_STATE_LABELS.get(ps, "")
+
+    # fallback: infer from payment method/title
+    pm = (order.get("payment_method") or "").strip().lower()
+    pmt = (order.get("payment_method_title") or "").strip().lower()
+    s = " ".join([pm, pmt]).strip()
+
+    if not s:
+        return ""
+
+    # typical Woo strings for cash on delivery
+    if "cod" in s or "cash" in s or "гот" in s or "нал" in s or "при получ" in s or "при отрим" in s:
+        return PAYMENT_STATE_LABELS["cod"]
+
+    # heuristic: any explicit online/paid method
+    if "card" in s or "liqpay" in s or "fondy" in s or "stripe" in s or "paypal" in s or "оплат" in s:
+        return PAYMENT_STATE_LABELS["paid"]
+
+    return ""
 _WOO_CACHE = {}
 
 
@@ -280,6 +310,9 @@ def index():
         order["status_label"] = badge["label"]
         order["status_class"] = badge["class"]
         order["created_at_display"] = format_created_at(order.get("created_at"))
+
+        order["payment_state_label"] = payment_state_label(order)
+
         wid = order.get("woo_id")
         order["products_display"] = format_products_for_table(
             items_by_woo.get(wid, []),

@@ -27,7 +27,7 @@ button{padding:10px 14px; border:0; cursor:pointer; font-weight:700;}
 .ac-meta{font-size:12px; color:#666;}
 
 .badge{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700;}
-.badge--new{background:#1976d2; color:#fff;}
+.badge--new{background:#2e7d32; color:#fff;}
 .badge--not-paid{background:#d32f2f; color:#fff;}
 .badge--hold{background:#cddc39; color:#1b1b1b;}
 .badge--ttn{background:#fb8c00; color:#fff;}
@@ -77,11 +77,14 @@ button{padding:10px 14px; border:0; cursor:pointer; font-weight:700;}
       </div>
       <div>
         <label>Статус</label>
-        <select name="status">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <select id="statusSelect" name="status">
           {% for code, meta in status_badges.items() %}
-            <option value="{{ code }}" {% if code == o['status_code'] %}selected{% endif %}>{{ meta['label'] }}</option>
+            <option value="{{ code }}" data-class="{{ meta['class'] }}" data-label="{{ meta['label'] }}" {% if code == o['status_code'] %}selected{% endif %}>{{ meta['label'] }}</option>
           {% endfor %}
-        </select>
+          </select>
+          <span id="statusPreview" class="badge {{ o['status_class'] }}">{{ o['status_label'] }}</span>
+        </div>
       </div>
 
       <div>
@@ -221,6 +224,8 @@ const cityList = document.getElementById('cityList');
 const deliveryService = document.getElementById('deliveryService');
 const amountInput = document.getElementById('amountInput');
 const amountAuto = document.getElementById('amountAuto');
+const statusSelect = document.getElementById('statusSelect');
+const statusPreview = document.getElementById('statusPreview');
 
 function syncAmountMode(){
   if(!amountInput || !amountAuto) return;
@@ -234,6 +239,20 @@ function syncAmountMode(){
 
 if(amountAuto){
   amountAuto.addEventListener('change', syncAmountMode);
+}
+
+function syncStatusPreview(){
+  if(!statusSelect || !statusPreview) return;
+  const opt = statusSelect.options[statusSelect.selectedIndex];
+  const cls = (opt && opt.dataset && opt.dataset.class) ? opt.dataset.class : '';
+  const label = (opt && opt.dataset && opt.dataset.label) ? opt.dataset.label : (opt ? opt.textContent : '');
+  statusPreview.className = 'badge ' + cls;
+  statusPreview.textContent = (label || '').trim();
+}
+
+if(statusSelect){
+  statusSelect.addEventListener('change', syncStatusPreview);
+  syncStatusPreview();
 }
 
 const whInput = document.getElementById('whInput');

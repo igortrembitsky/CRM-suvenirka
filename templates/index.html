@@ -30,7 +30,6 @@ th{
     background:#222;
     color:white;
 }
-}
 
 tr:nth-child(even){
     background:#f2f2f2;
@@ -85,6 +84,7 @@ a{
     <th>Клиент</th>
     <th>Телефон</th>
     <th>Статус</th>
+    <th>Оплата</th>
     <th>Товары</th>
     <th>Сумма</th>
 </tr>
@@ -104,6 +104,8 @@ a{
 <td>
     <span class="badge {{ o['status_class'] }}">{{ o['status_label'] }}</span>
 </td>
+
+<td>{{ o.get('payment_state_label','') }}</td>
 
 <td>{{ o.get("products_display", "") }}</td>
 <td>{{ o["amount"] }}</td>

@@ -153,7 +153,7 @@ def list_orders():
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT woo_id, created_at, customer_name, phone, status, amount, product
+        SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product
         FROM orders
         ORDER BY woo_id DESC
     """)
