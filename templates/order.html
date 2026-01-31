@@ -333,9 +333,9 @@ button{
 <div style="display:flex; align-items:center; gap:10px;">
 <select name="payment_state" id="paymentStateSelect">
 <option value="not_paid" {% if o.get('payment_state','')=='not_paid' %}selected{% endif %}>Не оплачено</option>
-<option value="cod" {% if o.get('payment_state','')=='cod' %}selected{% endif %}>Готівка при отриманні</option>
-<option value="paid" {% if o.get('payment_state','')=='paid' %}selected{% endif %}>Оплачено LiqPay</option>
-<option value="card" {% if o.get('payment_state','')=='card' %}selected{% endif %}>Оплата на карту</option>
+<option value="cod" {% if o.get('payment_state','')=='cod' %}selected{% endif %}>Наложка</option>
+<option value="paid" {% if o.get('payment_state','')=='paid' %}selected{% endif %}>LiqPay</option>
+<option value="card" {% if o.get('payment_state','')=='card' %}selected{% endif %}>На карту</option>
 </select>
 
 <img
@@ -427,7 +427,7 @@ function parseNumber(val){
 
 function formatMoney(n){
     if (n === null || n === undefined) return '';
-    return String(Math.round(n * 100) / 100);
+    return String(Math.round(n));
 }
 
 async function fetchWooProducts(q){

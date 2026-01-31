@@ -1,4 +1,5 @@
 import sqlite3
+from typing import Optional
 
 DB_PATH = None
 
@@ -82,6 +83,12 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS pending_woo_deletes (
+        woo_id INTEGER PRIMARY KEY
+    )
+    """)
+
     cur.execute("PRAGMA table_info(order_items)")
     cols_items = {r[1] for r in cur.fetchall()}
     if "amount" not in cols_items:
@@ -93,9 +100,35 @@ def init_db():
     conn.close()
 
 
+def list_pending_woo_deletes(limit: int = 500):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT woo_id FROM pending_woo_deletes ORDER BY woo_id DESC LIMIT ?",
+        (int(limit),),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def delete_pending_woo_delete(woo_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM pending_woo_deletes WHERE woo_id=?", (woo_id,))
+    conn.commit()
+    conn.close()
+
+
 def delete_order(woo_id: int):
     conn = get_conn()
     cur = conn.cursor()
+
+    cur.execute(
+        "INSERT OR IGNORE INTO pending_woo_deletes (woo_id) VALUES (?)",
+        (woo_id,),
+    )
 
     cur.execute("DELETE FROM order_items WHERE woo_id=?", (woo_id,))
     cur.execute("DELETE FROM orders WHERE woo_id=?", (woo_id,))
@@ -173,6 +206,61 @@ def list_orders():
     return rows
 
 
+def _build_created_at_range_where(from_date: Optional[str], to_date: Optional[str]):
+    clauses = []
+    params = []
+
+    fd = (from_date or "").strip()
+    td = (to_date or "").strip()
+
+    if fd:
+        clauses.append("created_at >= ?")
+        params.append(fd + " 00:00:00")
+
+    if td:
+        clauses.append("created_at <= ?")
+        params.append(td + " 23:59:59")
+
+    where_sql = ""
+    if clauses:
+        where_sql = " WHERE " + " AND ".join(clauses)
+
+    return where_sql, params
+
+
+def count_orders_filtered(from_date: Optional[str] = None, to_date: Optional[str] = None) -> int:
+    conn = get_conn()
+    cur = conn.cursor()
+
+    where_sql, params = _build_created_at_range_where(from_date, to_date)
+    cur.execute("SELECT COUNT(*) FROM orders" + where_sql, params)
+    row = cur.fetchone()
+    conn.close()
+    return int(row[0] or 0) if row else 0
+
+
+def list_orders_filtered(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    where_sql, params = _build_created_at_range_where(from_date, to_date)
+    sql = (
+        "SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product, "
+        "       delivery_service, shipping_method, city_ref, warehouse_ref, comment "
+        "FROM orders" + where_sql + " ORDER BY woo_id DESC LIMIT ? OFFSET ?"
+    )
+    cur.execute(sql, (*params, int(limit), int(offset)))
+
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
 def get_max_woo_id():
     conn = get_conn()
     cur = conn.cursor()
@@ -237,6 +325,22 @@ def update_status(woo_id, status):
     cur = conn.cursor()
 
     cur.execute("UPDATE orders SET status=? WHERE woo_id=?", (status, woo_id))
+
+    conn.commit()
+    conn.close()
+
+
+def update_status_bulk(woo_ids: list[int], status: str):
+    ids = [int(x) for x in (woo_ids or []) if str(x).strip() != ""]
+    if not ids:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    placeholders = ",".join(["?"] * len(ids))
+    sql = f"UPDATE orders SET status=? WHERE woo_id IN ({placeholders})"
+    cur.execute(sql, (status, *ids))
 
     conn.commit()
     conn.close()

@@ -1,19 +1,39 @@
 import requests
 from config import WOO_URL, CONSUMER_KEY, CONSUMER_SECRET
 
-def get_orders(per_page=100, page=1):
+def get_orders(per_page=100, page=1, after=None, before=None):
     url = f"{WOO_URL}/wp-json/wc/v3/orders"
+    params = {
+        "per_page": per_page,
+        "page": page,
+        "status": "any",
+        "orderby": "date",
+        "order": "desc",
+    }
+    if after:
+        params["after"] = after
+    if before:
+        params["before"] = before
     r = requests.get(
         url,
         auth=(CONSUMER_KEY, CONSUMER_SECRET),
-        params={
-            "per_page": per_page,
-            "page": page,
-            "status": "any",
-            "orderby": "date",
-            "order": "desc",
-        }
+        params=params
     )
+    r.raise_for_status()
+    return r.json()
+
+
+def delete_order(order_id: int, force: bool = True):
+    url = f"{WOO_URL}/wp-json/wc/v3/orders/{int(order_id)}"
+    params = {"force": "true" if force else "false"}
+    r = requests.delete(
+        url,
+        auth=(CONSUMER_KEY, CONSUMER_SECRET),
+        params=params,
+        timeout=30,
+    )
+    if r.status_code == 404:
+        return None
     r.raise_for_status()
     return r.json()
 

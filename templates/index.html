@@ -16,6 +16,7 @@ h1{
 
 table{
     width:100%;
+    table-layout:auto;
     border-collapse: collapse;
     background:white;
 }
@@ -24,9 +25,23 @@ th,td{
     border:1px solid #ccc;
     padding:8px;
     font-size:14px;
+    white-space:nowrap;
+    text-align:center;
+    vertical-align:middle;
+}
+
+.table-wrap{
+    width:100%;
+    overflow-x:auto;
 }
 
 .col-delete{
+    width:34px;
+    text-align:center;
+    padding:0;
+}
+
+.col-select{
     width:34px;
     text-align:center;
     padding:0;
@@ -49,7 +64,60 @@ th,td{
 
 tr.order-row{ cursor:pointer; }
 tr.order-row td.col-delete,
+tr.order-row td.col-select,
 tr.order-row select.status-select{ cursor:default; }
+
+.bulk-bar{
+    margin-left:auto;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.topbar-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.topbar-left{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.topbar-info{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+}
+
+.date-filter{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-left:10px;
+}
+
+.date-filter input[type="date"]{
+    width:150px;
+}
+
+.bulk-bar select{
+    width:180px;
+}
+
+.bulk-bar .bulk-count{
+    font-size:13px;
+    color:#333;
+}
 
 .products-cell .cal-miy{ color:#2e7d32; font-weight:700; }
 .products-cell .cal-svit{ color:#1565c0; font-weight:700; }
@@ -142,39 +210,66 @@ a{
 <h1>CRM Suvenirka</h1>
 
 <div style="max-width: 100%; margin: 10px 0;">
-    <form method="post" action="/sync" id="syncOrdersForm" style="display:inline-block; margin-right:10px;">
-        <button type="submit" id="syncOrdersBtn" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;">
-            Обновить заказы ⤓
-        </button>
-        <span class="sync-spinner" id="syncOrdersSpinner"></span>
-    </form>
+    <div class="topbar-row">
+        <div class="topbar-left">
+            <form method="post" action="/sync_statuses" id="syncStatusesForm" style="display:inline-block;">
+                <button type="submit" id="syncStatusesBtn" style="padding:8px 12px; border:0; background:#7b1f2a; color:white; cursor:pointer;">
+                    Обновить в Woo ⤒
+                </button>
+                <span class="sync-spinner" id="syncStatusesSpinner"></span>
+            </form>
 
-    <form method="post" action="/sync_statuses" id="syncStatusesForm" style="display:inline-block; margin-right:10px;">
-        <button type="submit" id="syncStatusesBtn" style="padding:8px 12px; border:0; background:#7b1f2a; color:white; cursor:pointer;">
-            Обновить статусы в WordPress ⤒
-        </button>
-        <span class="sync-spinner" id="syncStatusesSpinner"></span>
-    </form>
+            <form method="post" action="/sync_range" class="date-filter" style="margin:0;">
+                <label style="font-size:13px; color:#333;">С</label>
+                <input type="date" name="date_from" value="{{ date_from }}" />
+                <label style="font-size:13px; color:#333;">По</label>
+                <input type="date" name="date_to" value="{{ date_to }}" />
+                <button type="submit"
+                        style="padding:8px 12px; border:0; background:#0f5ea8; color:white; cursor:pointer;">
+                    Показать
+                </button>
+                <a href="/" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer; display:inline-block; font-size:13px; font-weight:700;">Показать последние 100</a>
+            </form>
+        </div>
 
-    {% if last_sync_at %}
-        <span style="font-size:13px; color:#333;">Последняя синхронизация: {{ last_sync_at }}</span>
-    {% endif %}
+        <div class="bulk-bar">
+            <span class="bulk-count" id="bulkCount">Выбрано: 0</span>
+            <select id="bulkStatusSelect">
+                <option value="">Изменить статусы</option>
+                {% for code, meta in status_badges.items() %}
+                    <option value="{{ code }}">{{ meta['label'] }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" id="bulkApplyBtn" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;" disabled>
+                Применить
+            </button>
+            <span class="sync-spinner" id="bulkApplySpinner"></span>
+        </div>
+    </div>
 
-    {% if last_status_sync_at %}
-        <span style="font-size:13px; color:#333; margin-left:12px;">Последняя синхронизация статусов: {{ last_status_sync_at }}</span>
-    {% endif %}
+    <div class="topbar-info" style="margin-top:8px;">
+        {% if last_sync_at %}
+            <span style="font-size:13px; color:#333;">Последняя синхронизация: {{ last_sync_at }}</span>
+        {% endif %}
 
-    {% if last_sync_error %}
-        <div style="margin-top:8px; color:#b00020; font-size:13px;">Ошибка синхронизации: {{ last_sync_error }}</div>
-    {% endif %}
+        {% if last_status_sync_at %}
+            <span style="font-size:13px; color:#333;">Последняя синхронизация статусов: {{ last_status_sync_at }}</span>
+        {% endif %}
 
-    {% if last_status_sync_error %}
-        <div style="margin-top:8px; color:#b00020; font-size:13px;">Ошибка синхронизации статусов: {{ last_status_sync_error }}</div>
-    {% endif %}
+        {% if last_sync_error %}
+            <span style="color:#b00020; font-size:13px;">Ошибка синхронизации: {{ last_sync_error }}</span>
+        {% endif %}
+
+        {% if last_status_sync_error %}
+            <span style="color:#b00020; font-size:13px;">Ошибка синхронизации статусов: {{ last_status_sync_error }}</span>
+        {% endif %}
+    </div>
 </div>
 
+<div class="table-wrap">
 <table>
 <tr>
+    <th class="col-select"><input type="checkbox" id="selectAllCb" title="Выбрать все" /></th>
     <th>Woo ID</th>
     <th>Дата/Время</th>
     <th>Клиент</th>
@@ -190,6 +285,7 @@ a{
 
 {% for o in orders %}
 <tr class="order-row" data-woo-id="{{ o['woo_id'] }}">
+<td class="col-select"><input type="checkbox" class="row-cb" data-woo-id="{{ o['woo_id'] }}" /></td>
 <td>
     <a href="/order/{{ o['woo_id'] }}">
         {{ o["woo_id"] }}
@@ -233,7 +329,7 @@ a{
     {% endif %}
     {{ o.get('payment_state_label','') }}
 </td>
-<td>{{ o["amount"] }}</td>
+<td>{{ o.get("amount_display", o.get("amount", "")) }}</td>
 
 <td class="comment-cell" title="{{ o.get('comment','') }}">{{ o.get('comment','') }}</td>
 
@@ -247,14 +343,59 @@ a{
 
 </table>
 
+</div>
+
+<div style="max-width: 100%; margin: 12px 0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+    <div style="font-size:13px; color:#333;">
+        Показано: {{ orders|length }} из {{ total_count }}
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        {% if page > 1 %}
+            <a href="/?page={{ page - 1 }}&date_from={{ date_from }}&date_to={{ date_to }}">‹ Пред</a>
+        {% else %}
+            <span style="color:#888;">‹ Пред</span>
+        {% endif %}
+
+        <span style="font-size:13px; color:#333;">Стр. {{ page }} из {{ total_pages }}</span>
+
+        <form method="get" action="/" style="display:inline-flex; gap:6px; align-items:center; margin:0;">
+            <input type="hidden" name="date_from" value="{{ date_from }}" />
+            <input type="hidden" name="date_to" value="{{ date_to }}" />
+            <input
+                type="number"
+                name="page"
+                min="1"
+                max="{{ total_pages }}"
+                value="{{ page }}"
+                style="width:70px; padding:6px 8px; border:1px solid #ccc; border-radius:6px; font-size:13px;"
+                title="Перейти на страницу"
+            />
+            <button type="submit" style="padding:6px 10px; border:0; background:#222; color:white; cursor:pointer; font-size:13px; border-radius:6px;">Перейти</button>
+        </form>
+
+        {% if page < total_pages %}
+            <a href="/?page={{ page + 1 }}&date_from={{ date_from }}&date_to={{ date_to }}">След ›</a>
+        {% else %}
+            <span style="color:#888;">След ›</span>
+        {% endif %}
+    </div>
+</div>
+
 <script>
-function wireSyncForm(formId, btnId, spinnerId){
+function wireSyncForm(formId, btnId, spinnerId, confirmMessage){
     const form = document.getElementById(formId);
     const btn = document.getElementById(btnId);
     const spinner = document.getElementById(spinnerId);
     if (!form || !btn || !spinner) return;
 
-    form.addEventListener('submit', () => {
+    form.addEventListener('submit', (e) => {
+        if (confirmMessage){
+            if (!confirm(confirmMessage)){
+                e.preventDefault();
+                return;
+            }
+        }
         spinner.style.display = 'inline-block';
         btn.disabled = true;
         btn.style.opacity = '0.7';
@@ -264,13 +405,132 @@ function wireSyncForm(formId, btnId, spinnerId){
 
 document.addEventListener('DOMContentLoaded', () => {
     wireSyncForm('syncOrdersForm', 'syncOrdersBtn', 'syncOrdersSpinner');
-    wireSyncForm('syncStatusesForm', 'syncStatusesBtn', 'syncStatusesSpinner');
+    wireSyncForm(
+        'syncStatusesForm',
+        'syncStatusesBtn',
+        'syncStatusesSpinner',
+        'Вы точно хотите заменить все текущие статусы в Woocomerc Wordpress?'
+    );
+
+    const bulkCount = document.getElementById('bulkCount');
+    const bulkStatusSelect = document.getElementById('bulkStatusSelect');
+    const bulkApplyBtn = document.getElementById('bulkApplyBtn');
+    const bulkApplySpinner = document.getElementById('bulkApplySpinner');
+    const selectAllCb = document.getElementById('selectAllCb');
+
+    function getSelectedWooIds(){
+        return Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'))
+            .filter(cb => cb.checked)
+            .map(cb => cb.dataset.wooId);
+    }
+
+    function updateBulkUi(){
+        const ids = getSelectedWooIds();
+        if (bulkCount) bulkCount.textContent = 'Выбрано: ' + String(ids.length);
+        const hasIds = ids.length > 0;
+        const hasStatus = !!(bulkStatusSelect && String(bulkStatusSelect.value || '').trim());
+        if (bulkApplyBtn) bulkApplyBtn.disabled = !(hasIds && hasStatus);
+        if (selectAllCb){
+            const allCbs = Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'));
+            const checked = allCbs.filter(cb => cb.checked);
+            selectAllCb.checked = allCbs.length > 0 && checked.length === allCbs.length;
+            selectAllCb.indeterminate = checked.length > 0 && checked.length < allCbs.length;
+        }
+    }
+
+    async function postBulkStatus(wooIds, status){
+        const r = await fetch('/orders/status_bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({woo_ids: wooIds, status})
+        });
+        const data = await r.json();
+        if (!r.ok){
+            throw new Error((data && data.error) ? data.error : 'Ошибка');
+        }
+        return data;
+    }
+
+    function setDisabledBulk(isDisabled){
+        if (bulkApplySpinner) bulkApplySpinner.style.display = isDisabled ? 'inline-block' : 'none';
+        if (bulkApplyBtn){
+            bulkApplyBtn.disabled = isDisabled || bulkApplyBtn.disabled;
+            bulkApplyBtn.style.opacity = isDisabled ? '0.7' : '1';
+            bulkApplyBtn.style.cursor = isDisabled ? 'default' : 'pointer';
+        }
+        if (bulkStatusSelect) bulkStatusSelect.disabled = isDisabled;
+        if (selectAllCb) selectAllCb.disabled = isDisabled;
+        for (const cb of Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'))){
+            cb.disabled = isDisabled;
+        }
+    }
+
+    for (const cb of Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'))){
+        cb.addEventListener('change', updateBulkUi);
+        cb.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
+    if (selectAllCb){
+        selectAllCb.addEventListener('change', () => {
+            const checked = !!selectAllCb.checked;
+            for (const cb of Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'))){
+                cb.checked = checked;
+            }
+            updateBulkUi();
+        });
+        selectAllCb.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    if (bulkStatusSelect){
+        bulkStatusSelect.addEventListener('change', updateBulkUi);
+    }
+
+    if (bulkApplyBtn){
+        bulkApplyBtn.addEventListener('click', async () => {
+            const ids = getSelectedWooIds();
+            const status = (bulkStatusSelect ? bulkStatusSelect.value : '') || '';
+            if (!ids.length) return;
+            if (!String(status).trim()) return;
+            if (!confirm('Изменить статус для ' + String(ids.length) + ' заказ(ов)?')) return;
+
+            setDisabledBulk(true);
+            try{
+                const res = await postBulkStatus(ids, status);
+                const updated = (res && res.updated) ? res.updated : [];
+                for (const u of updated){
+                    const wid = u.woo_id;
+                    const sel = document.querySelector('select.status-select[data-woo-id="' + String(wid) + '"]');
+                    if (!sel) continue;
+                    sel.value = u.status_code;
+                    applyBadgeClass(sel, u.status_class);
+                    sel.dataset.prevValue = u.status_code;
+                }
+
+                for (const cb of Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'))){
+                    cb.checked = false;
+                }
+                if (selectAllCb){
+                    selectAllCb.checked = false;
+                    selectAllCb.indeterminate = false;
+                }
+                updateBulkUi();
+            }catch(e){
+                alert(e.message || 'Ошибка');
+            }finally{
+                setDisabledBulk(false);
+                updateBulkUi();
+            }
+        });
+    }
 
     for (const tr of Array.from(document.querySelectorAll('tr.order-row[data-woo-id]'))){
         tr.addEventListener('click', (e) => {
             if (e.defaultPrevented) return;
             const target = e.target;
             if (!target) return;
+            if (target.closest('input.row-cb')) return;
             if (target.closest('select.status-select')) return;
             if (target.closest('td.col-delete')) return;
             if (target.closest('form.delete-form')) return;
@@ -292,6 +552,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    updateBulkUi();
+
     for (const td of Array.from(document.querySelectorAll('td.products-cell'))){
         const raw = (td.textContent || '').trim();
         if (!raw) continue;
@@ -303,7 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = '';
         while ((m = re.exec(raw)) !== null){
             const seg = (m[1] || '').trim();
-            const sep = m[2] || '';
+            const sepRaw = m[2] || '';
+            const sep = sepRaw ? (sepRaw + ' ') : '';
             if (!seg){
                 html += sep;
                 continue;

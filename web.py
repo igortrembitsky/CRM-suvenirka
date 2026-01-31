@@ -45,9 +45,9 @@ def map_crm_status_to_woo(raw_status: str):
 
 
 PAYMENT_STATE_LABELS = {
-    "paid": "Оплачено LiqPay",
-    "cod": "Готівка при отриманні",
-    "card": "Оплата на карту",
+    "paid": "LiqPay",
+    "cod": "Наложка",
+    "card": "На карту",
     "not_paid": "Не оплачено",
 }
 
@@ -129,6 +129,22 @@ def payment_state_icon_filename(order: dict):
     if ps in PAYMENT_STATE_ICONS:
         return PAYMENT_STATE_ICONS.get(ps)
     return None
+
+
+def format_amount_display(amount):
+    if amount is None:
+        return ""
+    try:
+        s = str(amount).strip().replace(",", ".")
+        if not s:
+            return ""
+        n = float(s)
+        return str(int(round(n)))
+    except Exception:
+        try:
+            return str(amount)
+        except Exception:
+            return ""
 
 
 def infer_payment_state(order: dict):
@@ -438,7 +454,31 @@ def format_products_for_table(items, product_fallback: str):
 
 @app.route("/")
 def index():
-    raw_orders = db.list_orders()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+
+    try:
+        page = int((request.args.get("page") or "1").strip() or "1")
+    except Exception:
+        page = 1
+    if page < 1:
+        page = 1
+
+    per_page = 100
+    offset = (page - 1) * per_page
+
+    total_count = db.count_orders_filtered(date_from or None, date_to or None)
+    total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    if page > total_pages:
+        page = total_pages
+        offset = (page - 1) * per_page
+
+    raw_orders = db.list_orders_filtered(
+        date_from or None,
+        date_to or None,
+        limit=per_page,
+        offset=offset,
+    )
     orders = []
 
     woo_ids = []
@@ -468,6 +508,8 @@ def index():
         order["payment_state_label"] = pay_label
         order["payment_icon_url"] = url_for("asset_file", filename=icon_name) if icon_name else ""
 
+        order["amount_display"] = format_amount_display(order.get("amount"))
+
         if not (order.get("delivery_service") or "").strip():
             if (order.get("city_ref") or "").strip() or (order.get("warehouse_ref") or "").strip():
                 order["delivery_service"] = "np"
@@ -491,6 +533,11 @@ def index():
         "index.html",
         orders=orders,
         status_badges=STATUS_BADGES,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        total_pages=total_pages,
+        total_count=total_count,
         last_sync_at=_LAST_SYNC_AT,
         last_sync_error=_LAST_SYNC_ERROR,
         last_status_sync_at=_LAST_STATUS_SYNC_AT,
@@ -527,6 +574,48 @@ def update_order_status_inline(woo_id: int):
     )
 
 
+@app.post("/orders/status_bulk")
+def update_orders_status_bulk():
+    try:
+        payload = request.get_json(silent=True) or {}
+    except Exception:
+        payload = {}
+
+    woo_ids = payload.get("woo_ids") or []
+    status_code = (payload.get("status") or "").strip()
+    status_code = normalize_status(status_code)
+
+    if status_code not in STATUS_BADGES:
+        return jsonify({"error": "Invalid status"}), 400
+
+    try:
+        ids = [int(x) for x in woo_ids if str(x).strip() != ""]
+    except Exception:
+        return jsonify({"error": "Invalid woo_ids"}), 400
+
+    if not ids:
+        return jsonify({"updated": []})
+
+    try:
+        db.update_status_bulk(ids, status_code)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    badge = STATUS_BADGES.get(status_code, STATUS_BADGES["new"])
+    updated = []
+    for wid in ids:
+        updated.append(
+            {
+                "woo_id": wid,
+                "status_code": status_code,
+                "status_label": badge.get("label"),
+                "status_class": badge.get("class"),
+            }
+        )
+
+    return jsonify({"updated": updated})
+
+
 @app.post("/sync")
 def sync_now():
     global _LAST_SYNC_AT, _LAST_SYNC_ERROR
@@ -547,6 +636,33 @@ def sync_now():
     return redirect(url_for("index"))
 
 
+@app.post("/sync_range")
+def sync_range_now():
+    global _LAST_SYNC_AT, _LAST_SYNC_ERROR
+
+    date_from = (request.form.get("date_from") or "").strip()
+    date_to = (request.form.get("date_to") or "").strip()
+
+    if not _SYNC_LOCK.acquire(blocking=False):
+        return "Синхронизация уже выполняется", 409
+
+    try:
+        _LAST_SYNC_ERROR = None
+        if (date_from or "").strip() or (date_to or "").strip():
+            from sync import sync_orders_range
+            sync_orders_range(date_from or None, date_to or None)
+        else:
+            from sync import sync_orders
+            sync_orders()
+        _LAST_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        _LAST_SYNC_ERROR = str(e)
+    finally:
+        _SYNC_LOCK.release()
+
+    return redirect(url_for("index", date_from=date_from, date_to=date_to))
+
+
 @app.post("/sync_statuses")
 def sync_statuses_now():
     global _LAST_STATUS_SYNC_AT, _LAST_STATUS_SYNC_ERROR
@@ -556,10 +672,25 @@ def sync_statuses_now():
 
     ok = 0
     failed = 0
+    del_ok = 0
+    del_failed = 0
     try:
         _LAST_STATUS_SYNC_ERROR = None
 
         started_at = time.time()
+
+        pending_del = db.list_pending_woo_deletes(limit=500)
+        for r in pending_del:
+            try:
+                wid = int(r["woo_id"])
+            except Exception:
+                continue
+            try:
+                woo_api.delete_order(wid, force=True)
+                db.delete_pending_woo_delete(wid)
+                del_ok += 1
+            except Exception:
+                del_failed += 1
 
         # Sync only latest orders (UI shows last 100)
         orders = db.list_orders()[:100]
@@ -586,7 +717,10 @@ def sync_statuses_now():
                 failed += len(chunk)
 
         elapsed = round(time.time() - started_at, 2)
-        _LAST_STATUS_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S") + f" (ok={ok}, fail={failed}, sec={elapsed})"
+        _LAST_STATUS_SYNC_AT = (
+            time.strftime("%Y-%m-%d %H:%M:%S")
+            + f" (del_ok={del_ok}, del_fail={del_failed}, ok={ok}, fail={failed}, sec={elapsed})"
+        )
     except Exception as e:
         _LAST_STATUS_SYNC_ERROR = str(e)
     finally:
