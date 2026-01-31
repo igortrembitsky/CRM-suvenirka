@@ -3,400 +3,337 @@
 <head>
 <meta charset="UTF-8">
 <title>Заказ {{ o['woo_id'] }}</title>
+
 <style>
-body{font-family: Arial, sans-serif; background:#f5f5f5;}
-.card{max-width:920px; margin:24px auto; background:white; padding:16px; border:1px solid #ddd;}
-a{text-decoration:none; color:#0066cc; font-weight:bold;}
-.row{margin:10px 0;}
-.grid{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
-label{display:block; font-size:13px; color:#222; margin-bottom:4px;}
-input[type=text], input[type=number], select, textarea{width:100%; padding:8px; border:1px solid #ccc; font-size:14px; box-sizing:border-box;}
-textarea{min-height:110px; resize:vertical;}
-.small{font-size:12px; color:#555;}
-.actions{display:flex; gap:10px; margin-top:14px;}
-button{padding:10px 14px; border:0; cursor:pointer; font-weight:700;}
-.btn-save{background:#222; color:#fff;}
-.btn-add{background:#e0e0e0; color:#111;}
-.btn-delete{background:#7b1f2a; color:#fff; margin-left:auto;}
-.banner{padding:10px; margin:10px 0; background:#e8f5e9; border:1px solid #c8e6c9;}
+body{
+    font-family:Arial, sans-serif;
+    background:#f5f5f5;
+}
 
-.ac-wrap{position:relative;}
-.ac-list{position:absolute; left:0; right:0; top:100%; z-index:50; background:#fff; border:1px solid #ccc; max-height:240px; overflow:auto; display:none;}
-.ac-item{padding:8px; cursor:pointer; border-bottom:1px solid #eee; font-size:14px;}
-.ac-item:hover{background:#f2f2f2;}
-.ac-meta{font-size:12px; color:#666;}
+/* ----- CARD ----- */
+.card{
+    max-width:1000px;
+    margin:20px auto;
+    background:#fff;
+    padding:18px;
+    border:1px solid #ddd;
+    box-sizing:border-box;
+}
 
-.badge{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700;}
-.badge--new{background:#2e7d32; color:#fff;}
-.badge--not-paid{background:#d32f2f; color:#fff;}
-.badge--hold{background:#cddc39; color:#1b1b1b;}
-.badge--ttn{background:#fb8c00; color:#fff;}
-.badge--confirmed-np{background:#1976d2; color:#fff;}
-.badge--confirmed-up{background:#03a9f4; color:#00324a;}
-.badge--shipped{background:#7b1fa2; color:#fff;}
-.badge--canceled{background:#616161; color:#fff;}
-.badge--bad{background:#212121; color:#fff;}
-.badge--paid{background:#2e7d32; color:#fff;}
+/* ----- TOP BAR ----- */
+.topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:20px;
+}
 
-.items{width:100%; border-collapse:collapse;}
-.items th, .items td{border:1px solid #ccc; padding:8px; font-size:14px;}
-.items th{background:#f3f3f3;}
+/* ----- FORM ----- */
+input,select,textarea{
+    width:100%;
+    padding:8px;
+    border:1px solid #ccc;
+    font-size:14px;
+    box-sizing:border-box;
+}
+
+label{
+    display:block;
+    margin-bottom:4px;
+    font-size:13px;
+}
+
+.row{margin-bottom:15px;}
+
+.grid-3{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:12px;
+}
+
+.grid-2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+}
+
+/* ----- BADGES ----- */
+.badge{
+    padding:6px 14px;
+    border-radius:20px;
+    color:#fff;
+    font-weight:700;
+    font-size:13px;
+}
+
+.badge--new{background:#2e7d32;}
+.badge--not_paid{background:#d32f2f;}
+.badge--hold{background:#cddc39;color:#111;}
+.badge--ttn{background:#fb8c00;}
+.badge--confirmed_np{background:#1976d2;}
+.badge--confirmed_up{background:#03a9f4;}
+.badge--shipped{background:#7b1fa2;}
+.badge--canceled{background:#616161;}
+
+/* ----- ITEMS TABLE ----- */
+.items{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+}
+
+.items th,.items td{
+    border:1px solid #ccc;
+    padding:8px;
+}
+
+.items th:nth-child(1){width:55%;}
+.items th:nth-child(2){width:10%;}
+.items th:nth-child(3){width:25%;}
+.items th:nth-child(4){width:40px;}
+
+.items th{
+    background:#f3f3f3;
+}
+
+/* ----- BUTTONS ----- */
+.actions{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:20px;
+    flex-wrap:wrap;
+    gap:10px;
+}
+
+.left-actions button{
+    background:#8b1d1d;
+    color:#fff;
+}
+
+.center-actions button{
+    background:#1976d2;
+    color:#fff;
+}
+
+.right-actions button{
+    background:#222;
+    color:#fff;
+}
+
+button{
+    padding:10px 14px;
+    border:0;
+    font-weight:700;
+    cursor:pointer;
+}
+
+/* ----- MOBILE ----- */
+@media(max-width:700px){
+
+.grid-3{grid-template-columns:1fr;}
+.grid-2{grid-template-columns:1fr;}
+
+.topbar{
+    flex-direction:column;
+    gap:10px;
+}
+
+}
 </style>
 </head>
-<body>
-<div class="card">
-  <div class="row"><a href="/">← Назад</a></div>
-  <h2>Заказ №{{ o['woo_id'] }}</h2>
 
-  <div class="row">
-    <b>Статус сейчас:</b>
-    <span class="badge {{ o['status_class'] }}">{{ o['status_label'] }}</span>
+<body>
+
+<div class="card">
+
+<div class="topbar">
+    <h2>Заказ №{{ o['woo_id'] }}</h2>
+    <span class="badge badge--{{ o['status_code'] }}">{{ o['status_label'] }}</span>
+</div>
+
+<form method="post">
+
+<!-- ================= ТОВАРЫ ================= -->
+
+<div class="row">
+<label>Товары</label>
+
+<table class="items" id="itemsTable">
+<tr>
+    <th>Товар</th>
+    <th>Кол-во</th>
+    <th>Сумма</th>
+    <th></th>
+</tr>
+
+{% for it in items %}
+<tr>
+<td>
+<input type="text" name="item_name" value="{{ it.get('name','') }}">
+</td>
+
+<td>
+<input type="number" name="item_qty" value="{{ it.get('qty',1) }}">
+</td>
+
+<td>
+<input type="text" name="amount" value="{{ o.get('amount','') }}">
+</td>
+
+<td>
+<button type="button" onclick="removeRow(this)">×</button>
+</td>
+</tr>
+{% endfor %}
+</table>
+
+<button type="button" onclick="addRow()">+ Добавить</button>
+</div>
+
+<!-- ================= КОНТАКТЫ ================= -->
+
+<div class="grid-3">
+<div>
+<label>Телефон</label>
+<input type="text" name="phone" value="{{ o.get('phone','') }}">
+</div>
+
+<div>
+<label>Фамилия</label>
+<input type="text" name="last_name" value="{{ o.get('last_name','') }}">
+</div>
+
+<div>
+<label>Имя</label>
+<input type="text" name="first_name" value="{{ o.get('first_name','') }}">
+</div>
+</div>
+
+<!-- ================= АДРЕС ================= -->
+
+<div class="grid-2">
+<div>
+<label>Город</label>
+<input type="text" name="city" value="{{ o.get('city','') }}">
+</div>
+
+<div>
+<label>Отделение / Индекс</label>
+<input type="text" name="address" value="{{ o.get('address','') }}">
+</div>
+</div>
+
+<!-- ================= ОПЛАТА / СТАТУС ================= -->
+
+<div class="grid-2">
+<div>
+<label>Оплата</label>
+<select name="payment_state">
+<option value="not_paid">Не оплачено</option>
+<option value="cod">Готівка при отриманні</option>
+<option value="paid">Оплачено</option>
+</select>
+</div>
+
+<div>
+<label>Статус</label>
+<select name="status">
+{% for code, meta in status_badges.items() %}
+<option value="{{ code }}" {% if code==o['status_code'] %}selected{% endif %}>
+{{ meta['label'] }}
+</option>
+{% endfor %}
+</select>
+</div>
+</div>
+
+<!-- ================= КОММЕНТАРИЙ ================= -->
+
+<div class="row">
+<label>Комментарий</label>
+<textarea name="comment">{{ o.get('comment','') }}</textarea>
+</div>
+
+<!-- ================= КНОПКИ ================= -->
+<div class="actions">
+
+  <!-- ЛЕВО -->
+  <div class="left-actions">
+    <button
+      formaction="{{ url_for('delete_order', woo_id=o['woo_id']) }}"
+      onclick="return confirm('Удалить заказ?')"
+      style="background:#8b1d1d;color:#fff;">
+      Удалить
+    </button>
+
+    <button type="button"
+            onclick="window.location='/'"
+            style="background:#e0e0e0;color:#000;">
+      Назад
+    </button>
   </div>
 
-  {% if saved %}
-    <div class="banner">Сохранено</div>
-  {% endif %}
+  <!-- ЦЕНТР -->
+  <div class="center-actions">
+    <button type="submit"
+            name="quick_status"
+            value="confirmed_np"
+            style="background:#1976d2;color:#fff;">
+      Підтверджен НП
+    </button>
 
-  <form method="post">
+    <button type="submit"
+            name="quick_status"
+            value="confirmed_up"
+            style="background:#2196f3;color:#fff;">
+      Підтверджен УП
+    </button>
 
-    <datalist id="productsList"></datalist>
+    <button type="submit"
+            name="quick_status"
+            value="ttn"
+            style="background:#fb8c00;color:#fff;">
+      Створено ТТН
+    </button>
+  </div>
 
-    <div class="grid">
-      <div>
-        <label>Имя</label>
-        <input type="text" name="first_name" value="{{ o.get('first_name','') }}" />
-      </div>
-      <div>
-        <label>Фамилия</label>
-        <input type="text" name="last_name" value="{{ o.get('last_name','') }}" />
-      </div>
+  <!-- ПРАВО -->
+  <div class="right-actions">
+    <button type="button"
+            onclick="window.location='/'"
+            style="background:#e0e0e0;color:#000;">
+      Закрыть
+    </button>
 
-      <div>
-        <label>Телефон</label>
-        <input type="text" name="phone" value="{{ o.get('phone','') }}" />
-      </div>
-      <div>
-        <label>Статус</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <select id="statusSelect" name="status">
-          {% for code, meta in status_badges.items() %}
-            <option value="{{ code }}" data-class="{{ meta['class'] }}" data-label="{{ meta['label'] }}" {% if code == o['status_code'] %}selected{% endif %}>{{ meta['label'] }}</option>
-          {% endfor %}
-          </select>
-          <span id="statusPreview" class="badge {{ o['status_class'] }}">{{ o['status_label'] }}</span>
-        </div>
-      </div>
+    <button type="submit"
+            style="background:#222;color:#fff;">
+      Сохранить
+    </button>
+  </div>
 
-      <div>
-        <label>Город</label>
-        <div class="ac-wrap">
-          <input type="text" id="cityInput" name="city" autocomplete="off" value="{{ o.get('city','') }}" />
-          <input type="hidden" id="cityRef" name="city_ref" value="{{ o.get('city_ref','') }}" />
-          <div id="cityList" class="ac-list"></div>
-        </div>
-        <div class="small">Новая Почта: начни вводить (минимум 2 символа), выбери из списка.</div>
-      </div>
-      <div>
-        <label>Адрес / Отделение</label>
-        <div class="ac-wrap">
-          <input type="text" id="whInput" name="address" autocomplete="off" value="{{ o.get('address','') }}" />
-          <input type="hidden" id="whRef" name="warehouse_ref" value="{{ o.get('warehouse_ref','') }}" />
-          <div id="whList" class="ac-list"></div>
-        </div>
-        <div class="small">В одном списке будут отделения и почтоматы (при выбранном городе НП).</div>
-      </div>
+</div>
 
-      <div>
-        <label>Доставка</label>
-        <select id="deliveryService" name="delivery_service">
-          <option value="np" {% if o.get('delivery_service') == 'np' %}selected{% endif %}>Новая почта</option>
-          <option value="ukr" {% if o.get('delivery_service') == 'ukr' %}selected{% endif %}>Укрпочта</option>
-        </select>
-        <div class="small">При Укрпочте подсказки НП не используются.</div>
-      </div>
-      <div>
-        <label>Оплата</label>
-        <select name="payment_state">
-          <option value="not_paid" {% if o.get('payment_state') == 'not_paid' %}selected{% endif %}>Не оплачено</option>
-          <option value="cod" {% if o.get('payment_state') == 'cod' %}selected{% endif %}>Готівка при отриманні</option>
-          <option value="paid" {% if o.get('payment_state') == 'paid' %}selected{% endif %}>Оплачено</option>
-          <option value="card" {% if o.get('payment_state') == 'card' %}selected{% endif %}>Оплата на карту</option>
-        </select>
-      </div>
+</form>
 
-      <div>
-        <label>Сумма</label>
-        <input type="text" id="amountInput" name="amount" value="{{ o.get('amount','') }}" />
-        <div class="small">
-          <label style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-            <input type="checkbox" id="amountAuto" name="amount_auto" value="1" {% if o.get('amount_auto', 1) %}checked{% endif %} />
-            Авто-сумма (по товарам)
-          </label>
-        </div>
-      </div>
-      <div>
-        <label>Woo ID</label>
-        <input type="text" value="{{ o.get('woo_id','') }}" disabled />
-      </div>
-    </div>
-
-    <div class="row">
-      <label>Коментарии</label>
-      <textarea name="comment">{{ o.get('comment','') }}</textarea>
-    </div>
-
-    <div class="row">
-      <label>Товары</label>
-      <table class="items" id="itemsTable">
-        <tr>
-          <th style="width:70%">Товар</th>
-          <th style="width:20%">Кол-во</th>
-          <th style="width:10%"></th>
-        </tr>
-        {% for it in items %}
-        <tr>
-          <td><input type="text" name="item_name" list="productsList" value="{{ it.get('name','') }}" /></td>
-          <td><input type="number" name="item_qty" value="{{ it.get('qty',1) }}" min="1" /></td>
-          <td><button type="button" onclick="removeRow(this)">×</button></td>
-        </tr>
-        {% endfor %}
-      </table>
-
-      <div class="actions">
-        <button type="button" class="btn-add" onclick="addRow()">+ Добавить строку</button>
-        <button type="submit" class="btn-save">Сохранить</button>
-        <button
-          type="submit"
-          class="btn-delete"
-          formmethod="post"
-          formaction="{{ url_for('delete_order', woo_id=o.get('woo_id')) }}"
-          onclick="return confirm('Удалить заказ {{ o.get('woo_id') }}?');"
-        >Удалить</button>
-      </div>
-    </div>
-
-  </form>
 </div>
 
 <script>
-function debounce(fn, ms){
-  let t;
-  return function(){
-    clearTimeout(t);
-    const args = arguments;
-    const ctx = this;
-    t = setTimeout(function(){ fn.apply(ctx, args); }, ms);
-  }
-}
-
-function showList(el){ el.style.display = 'block'; }
-function hideList(el){ el.style.display = 'none'; }
-
-async function fetchJson(url){
-  const r = await fetch(url);
-  if(!r.ok){ return []; }
-  return await r.json();
-}
-
-function renderList(listEl, items, onPick){
-  listEl.innerHTML = '';
-  if(!items || items.length === 0){ hideList(listEl); return; }
-  items.forEach(function(it){
-    const div = document.createElement('div');
-    div.className = 'ac-item';
-    const title = document.createElement('div');
-    title.textContent = it.name;
-    div.appendChild(title);
-    if(it.area || it.region || it.type){
-      const meta = document.createElement('div');
-      meta.className = 'ac-meta';
-      meta.textContent = [it.area, it.region, it.type].filter(Boolean).join(' · ');
-      div.appendChild(meta);
-    }
-    div.addEventListener('click', function(){ onPick(it); });
-    listEl.appendChild(div);
-  });
-  showList(listEl);
-}
-
-const cityInput = document.getElementById('cityInput');
-const cityRef = document.getElementById('cityRef');
-const cityList = document.getElementById('cityList');
-
-const deliveryService = document.getElementById('deliveryService');
-const amountInput = document.getElementById('amountInput');
-const amountAuto = document.getElementById('amountAuto');
-const statusSelect = document.getElementById('statusSelect');
-const statusPreview = document.getElementById('statusPreview');
-const paymentState = document.querySelector('select[name="payment_state"]');
-
-function syncAmountMode(){
-  if(!amountInput || !amountAuto) return;
-  if(amountAuto.checked){
-    amountInput.readOnly = true;
-    recalcTotal();
-  } else {
-    amountInput.readOnly = false;
-  }
-}
-
-if(amountAuto){
-  amountAuto.addEventListener('change', syncAmountMode);
-}
-
-function syncStatusPreview(){
-  if(!statusSelect || !statusPreview) return;
-  const opt = statusSelect.options[statusSelect.selectedIndex];
-  const cls = (opt && opt.dataset && opt.dataset.class) ? opt.dataset.class : '';
-  const label = (opt && opt.dataset && opt.dataset.label) ? opt.dataset.label : (opt ? opt.textContent : '');
-  statusPreview.className = 'badge ' + cls;
-  statusPreview.textContent = (label || '').trim();
-}
-
-if(statusSelect){
-  statusSelect.addEventListener('change', syncStatusPreview);
-  syncStatusPreview();
-}
-
-if(paymentState){
-  paymentState.addEventListener('change', function(){
-    if((paymentState.value || '').toLowerCase() === 'card' && statusSelect){
-      statusSelect.value = 'new';
-      syncStatusPreview();
-    }
-  });
-}
-
-const whInput = document.getElementById('whInput');
-const whRef = document.getElementById('whRef');
-const whList = document.getElementById('whList');
-
-cityInput.addEventListener('input', debounce(async function(){
-  if(deliveryService && deliveryService.value !== 'np'){ hideList(cityList); return; }
-  const q = cityInput.value.trim();
-  cityRef.value = '';
-  if(q.length < 2){ hideList(cityList); return; }
-  const items = await fetchJson('/np/cities?q=' + encodeURIComponent(q));
-  renderList(cityList, items, function(it){
-    cityInput.value = it.name;
-    cityRef.value = it.ref || '';
-    hideList(cityList);
-    whInput.value = '';
-    whRef.value = '';
-  });
-}, 250));
-
-whInput.addEventListener('input', debounce(async function(){
-  if(deliveryService && deliveryService.value !== 'np'){ hideList(whList); return; }
-  const q = whInput.value.trim();
-  whRef.value = '';
-  const cr = cityRef.value.trim();
-  if(!cr){ hideList(whList); return; }
-  const items = await fetchJson('/np/warehouses?city_ref=' + encodeURIComponent(cr) + '&q=' + encodeURIComponent(q));
-  renderList(whList, items, function(it){
-    whInput.value = it.name;
-    whRef.value = it.ref || '';
-    hideList(whList);
-  });
-}, 250));
-
-document.addEventListener('click', function(e){
-  if(!cityList.contains(e.target) && e.target !== cityInput){ hideList(cityList); }
-  if(!whList.contains(e.target) && e.target !== whInput){ hideList(whList); }
-});
-
-function syncNpEnabled(){
-  const npEnabled = !deliveryService || deliveryService.value === 'np';
-  cityInput.readOnly = false;
-  whInput.readOnly = false;
-  if(!npEnabled){
-    hideList(cityList);
-    hideList(whList);
-    cityRef.value = '';
-    whRef.value = '';
-  }
-}
-
-if(deliveryService){
-  deliveryService.addEventListener('change', syncNpEnabled);
-  syncNpEnabled();
-}
-
-async function loadProducts(){
-  const list = document.getElementById('productsList');
-  if(!list) return;
-  const items = await fetchJson('/woo/products');
-  if(!Array.isArray(items)) return;
-  list.innerHTML = '';
-  window.__productsMap = {};
-  items.forEach(function(p){
-    const opt = document.createElement('option');
-    opt.value = p.name || '';
-    list.appendChild(opt);
-
-    const price = parseFloat(p.price);
-    if(p.name && !Number.isNaN(price)){
-      window.__productsMap[p.name] = price;
-    }
-  });
-
-  bindItemsAutoCalc();
-  syncAmountMode();
-}
-loadProducts();
-
-function recalcTotal(){
-  if(amountAuto && !amountAuto.checked){
-    return;
-  }
-  const map = window.__productsMap || {};
-  const names = document.getElementsByName('item_name');
-  const qtys = document.getElementsByName('item_qty');
-  let total = 0;
-  for(let i=0;i<names.length;i++){
-    const name = (names[i].value || '').trim();
-    if(!name) continue;
-    const price = map[name];
-    if(typeof price !== 'number') continue;
-    const q = parseInt(qtys[i].value || '1', 10);
-    total += price * (Number.isNaN(q) ? 1 : q);
-  }
-  if(amountInput){
-    amountInput.value = total.toFixed(2);
-  }
-}
-
-function bindItemsAutoCalc(){
-  const names = document.getElementsByName('item_name');
-  const qtys = document.getElementsByName('item_qty');
-  for(let i=0;i<names.length;i++){
-    names[i].addEventListener('input', debounce(recalcTotal, 150));
-    names[i].addEventListener('change', debounce(recalcTotal, 150));
-  }
-  for(let i=0;i<qtys.length;i++){
-    qtys[i].addEventListener('input', debounce(recalcTotal, 150));
-    qtys[i].addEventListener('change', debounce(recalcTotal, 150));
-  }
-}
-
 function addRow(){
-  var tbl = document.getElementById('itemsTable');
-  var row = tbl.insertRow(-1);
-  var c1 = row.insertCell(0);
-  var c2 = row.insertCell(1);
-  var c3 = row.insertCell(2);
-  c1.innerHTML = '<input type="text" name="item_name" list="productsList" value="" />';
-  c2.innerHTML = '<input type="number" name="item_qty" value="1" min="1" />';
-  c3.innerHTML = '<button type="button" onclick="removeRow(this)">×</button>';
-
-  bindItemsAutoCalc();
-  recalcTotal();
+    let t=document.getElementById("itemsTable");
+    let r=t.insertRow(-1);
+    r.innerHTML=`
+<td><input type="text" name="item_name"></td>
+<td><input type="number" name="item_qty" value="1"></td>
+<td><input type="text" name="amount"></td>
+<td><button type="button" onclick="removeRow(this)">×</button></td>
+`;
 }
+
 function removeRow(btn){
-  var row = btn.closest('tr');
-  if(row){ row.remove(); }
-  recalcTotal();
+    btn.closest("tr").remove();
 }
 </script>
+
 </body>
 </html>
