@@ -43,7 +43,16 @@ label{
     font-size:13px;
 }
 
-.row{margin-bottom:15px;}
+.row{
+    margin-bottom:15px;
+}
+
+/* ----- GRIDS ----- */
+.grid-2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+}
 
 .grid-3{
     display:grid;
@@ -51,9 +60,9 @@ label{
     gap:12px;
 }
 
-.grid-2{
+.grid-4{
     display:grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:1fr 1fr 1fr 1fr;
     gap:12px;
 }
 
@@ -82,7 +91,8 @@ label{
     table-layout:fixed;
 }
 
-.items th,.items td{
+.items th,
+.items td{
     border:1px solid #ccc;
     padding:8px;
 }
@@ -102,7 +112,6 @@ label{
     justify-content:space-between;
     align-items:center;
     margin-top:20px;
-    flex-wrap:wrap;
     gap:10px;
 }
 
@@ -128,18 +137,10 @@ button{
     cursor:pointer;
 }
 
-/* ----- MOBILE ----- */
-@media(max-width:700px){
-
-.grid-3{grid-template-columns:1fr;}
-.grid-2{grid-template-columns:1fr;}
-
-.topbar{
-    flex-direction:column;
-    gap:10px;
+#middleNameBlock{
+    display:none;
 }
 
-}
 </style>
 </head>
 
@@ -191,23 +192,54 @@ button{
 <button type="button" onclick="addRow()">+ Добавить</button>
 </div>
 
+<!-- ================= ДОСТАВКА ================= -->
+
+<div class="row">
+
+<div class="grid-2">
+
+  <div></div>
+
+  <div>
+    <label>Доставка</label>
+    <select name="delivery_service">
+      <option value="np" {% if o.get('delivery_service')=='np' %}selected{% endif %}>
+        Нова пошта
+      </option>
+      <option value="ukr" {% if o.get('delivery_service')=='ukr' %}selected{% endif %}>
+        Укрпошта
+      </option>
+    </select>
+  </div>
+
+</div>
+
+</div>
+
 <!-- ================= КОНТАКТЫ ================= -->
 
-<div class="grid-3">
+<div class="grid-4" id="personBlock">
+
 <div>
 <label>Телефон</label>
 <input type="text" name="phone" value="{{ o.get('phone','') }}">
 </div>
 
 <div>
-<label>Фамилия</label>
+<label>Прізвище</label>
 <input type="text" name="last_name" value="{{ o.get('last_name','') }}">
 </div>
 
 <div>
-<label>Имя</label>
-<input type="text" name="first_name" value="{{ o.get('first_name','') }}">
+<label>Ім'я та (по-батькові)</label>
+<input type="text" name="first_name" value="{{ o.get('first_name','') }} {{ o.get('middle_name','') }}">
 </div>
+
+<div id="middleNameBlock">
+<label>По-батькові</label>
+<input type="text" name="middle_name" value="{{ o.get('company','') }}">
+</div>
+
 </div>
 
 <!-- ================= АДРЕС ================= -->
@@ -267,11 +299,6 @@ button{
       Удалить
     </button>
 
-    <button type="button"
-            onclick="window.location='/'"
-            style="background:#e0e0e0;color:#000;">
-      Назад
-    </button>
   </div>
 
   <!-- ЦЕНТР -->
@@ -332,6 +359,66 @@ function addRow(){
 
 function removeRow(btn){
     btn.closest("tr").remove();
+}
+</script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+    const statusSelect = document.querySelector("select[name='status']");
+    const badge = document.querySelector(".topbar .badge");
+
+    if(!statusSelect || !badge) return;
+
+    // соответствие статусов и css-классов
+    const STATUS_CLASSES = {
+        "new": "badge--new",
+        "not_paid": "badge--not_paid",
+        "hold": "badge--hold",
+        "ttn": "badge--ttn",
+        "confirmed_np": "badge--confirmed_np",
+        "confirmed_up": "badge--confirmed_up",
+        "shipped": "badge--shipped",
+        "canceled": "badge--canceled"
+    };
+
+    function updateBadge(){
+        const value = statusSelect.value;
+        const label = statusSelect.options[statusSelect.selectedIndex].text;
+
+        // убираем все классы badge--
+        badge.className = "badge";
+
+        if(STATUS_CLASSES[value]){
+            badge.classList.add(STATUS_CLASSES[value]);
+        }
+
+        badge.textContent = label;
+    }
+
+    statusSelect.addEventListener("change", updateBadge);
+
+});
+</script>
+
+<script>
+const deliverySelect = document.querySelector('[name="delivery_service"]');
+const middleBlock = document.getElementById("middleNameBlock");
+
+function toggleMiddleName(){
+    if(!deliverySelect || !middleBlock) return;
+
+    if(deliverySelect.value === "ukr"){
+        middleBlock.style.display = "block";
+    }else{
+        middleBlock.style.display = "none";
+    }
+}
+
+if(deliverySelect){
+    deliverySelect.addEventListener("change", toggleMiddleName);
+    toggleMiddleName();
 }
 </script>
 
