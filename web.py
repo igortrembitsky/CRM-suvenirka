@@ -648,13 +648,29 @@ def sync_range_now():
 
     try:
         _LAST_SYNC_ERROR = None
+
+        del_ok = 0
+        del_failed = 0
+        pending_del = db.list_pending_woo_deletes(limit=500)
+        for r in pending_del:
+            try:
+                wid = int(r["woo_id"])
+            except Exception:
+                continue
+            try:
+                woo_api.delete_order(wid, force=True)
+                db.delete_pending_woo_delete(wid)
+                del_ok += 1
+            except Exception:
+                del_failed += 1
+
         if (date_from or "").strip() or (date_to or "").strip():
             from sync import sync_orders_range
             sync_orders_range(date_from or None, date_to or None)
         else:
             from sync import sync_orders
             sync_orders()
-        _LAST_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S")
+        _LAST_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S") + f" (del_ok={del_ok}, del_fail={del_failed})"
     except Exception as e:
         _LAST_SYNC_ERROR = str(e)
     finally:

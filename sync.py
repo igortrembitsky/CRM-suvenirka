@@ -82,6 +82,8 @@ def sync_orders():
     page = 1
     pages_limit = 10
 
+    pending_delete_ids = db.pending_woo_delete_ids(limit=10000)
+
     orders = []
     while page <= pages_limit:
         chunk = get_orders(per_page, page=page)
@@ -101,6 +103,13 @@ def sync_orders():
         page += 1
 
     for o in orders:
+
+        try:
+            wid = int(get_value(o, ORDER_FIELDS["woo_id"]))
+        except Exception:
+            wid = None
+        if wid is not None and wid in pending_delete_ids:
+            continue
 
         # ---------- ITEMS (from Woo line_items) ----------
         items = []
@@ -175,7 +184,7 @@ def sync_orders():
 
         # ---------- SAVE ----------
         order = {
-            "woo_id": int(get_value(o, ORDER_FIELDS["woo_id"])),
+            "woo_id": wid if wid is not None else int(get_value(o, ORDER_FIELDS["woo_id"])),
             "created_at": get_value(o, ORDER_FIELDS["created_at"]),
             "first_name": first,
             "last_name": last,
@@ -211,6 +220,8 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
     per_page = 100
     page = 1
 
+    pending_delete_ids = db.pending_woo_delete_ids(limit=10000)
+
     after, before = _iso_after_before_from_dates(date_from, date_to)
 
     orders = []
@@ -222,6 +233,13 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
         page += 1
 
     for o in orders:
+
+        try:
+            wid = int(get_value(o, ORDER_FIELDS["woo_id"]))
+        except Exception:
+            wid = None
+        if wid is not None and wid in pending_delete_ids:
+            continue
 
         items = []
         for li in (o.get("line_items") or []):
@@ -286,7 +304,7 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
         comment = get_value(o, ORDER_FIELDS["customer_note"])
 
         order = {
-            "woo_id": int(get_value(o, ORDER_FIELDS["woo_id"])),
+            "woo_id": wid if wid is not None else int(get_value(o, ORDER_FIELDS["woo_id"])),
             "created_at": get_value(o, ORDER_FIELDS["created_at"]),
             "first_name": first,
             "last_name": last,

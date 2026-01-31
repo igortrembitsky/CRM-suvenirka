@@ -113,6 +113,17 @@ def list_pending_woo_deletes(limit: int = 500):
     return rows
 
 
+def pending_woo_delete_ids(limit: int = 10000) -> set[int]:
+    rows = list_pending_woo_deletes(limit=limit)
+    res: set[int] = set()
+    for r in rows:
+        try:
+            res.add(int(r["woo_id"]))
+        except Exception:
+            continue
+    return res
+
+
 def delete_pending_woo_delete(woo_id: int):
     conn = get_conn()
     cur = conn.cursor()
