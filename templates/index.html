@@ -26,6 +26,44 @@ th,td{
     font-size:14px;
 }
 
+.col-delete{
+    width:34px;
+    text-align:center;
+    padding:0;
+}
+
+.btn-delete{
+    border:0;
+    background:transparent;
+    color:#d32f2f;
+    font-size:18px;
+    font-weight:700;
+    cursor:pointer;
+    line-height:1;
+    padding:6px 8px;
+}
+
+.btn-delete:hover{
+    color:#b71c1c;
+}
+
+tr.order-row{ cursor:pointer; }
+tr.order-row td.col-delete,
+tr.order-row select.status-select{ cursor:default; }
+
+.products-cell .cal-miy{ color:#2e7d32; font-weight:700; }
+.products-cell .cal-svit{ color:#1565c0; font-weight:700; }
+.products-cell .cal-dobriy{ color:#6d4c41; font-weight:700; }
+.products-cell .cal-razom{ color:#c2185b; font-weight:700; }
+
+.comment-cell{
+    width:140px;
+    max-width:140px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
 th{
     background:#222;
     color:white;
@@ -35,9 +73,33 @@ tr:nth-child(even){
     background:#f2f2f2;
 }
 
+.sync-icon{
+    display:inline-block;
+    margin-left:8px;
+    vertical-align:middle;
+    color:#333;
+}
+
+.sync-spinner{
+    display:none;
+    width:14px;
+    height:14px;
+    margin-left:8px;
+    border:2px solid rgba(0,0,0,0.25);
+    border-top-color: rgba(0,0,0,0.75);
+    border-radius:50%;
+    vertical-align:middle;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin{
+    from{ transform: rotate(0deg); }
+    to{ transform: rotate(360deg); }
+}
+
 /* Цвета статусов */
 
-.badge{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700;}
+.badge{display:inline-flex; align-items:center; justify-content:center; height:24px; min-width:120px; padding:0 10px; border-radius:999px; font-size:12px; font-weight:700; box-sizing:border-box; white-space:nowrap;}
 .badge--new{background:#6cad17; color:#fff;}
 .badge--not-paid{background:#d32f2f; color:#fff;}
 .badge--hold{background:#cddc39; color:#1b1b1b;}
@@ -47,6 +109,25 @@ tr:nth-child(even){
 .badge--canceled{background:#616161; color:#fff;}
 .badge--bad{background:#212121; color:#fff;}
 .badge--paid{background:#2e7d32; color:#fff;}
+
+.status-select{
+    appearance:none;
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    border:0;
+    outline:none;
+    cursor:pointer;
+    padding-right:26px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'><path fill='currentColor' d='M7 10l5 5l5-5z'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 8px center;
+    background-size:14px 14px;
+}
+
+.status-select.dropdown-open{
+    background-color:#fff !important;
+    color:#111 !important;
+}
 
 a{
     text-decoration:none;
@@ -61,16 +142,18 @@ a{
 <h1>CRM Suvenirka</h1>
 
 <div style="max-width: 100%; margin: 10px 0;">
-    <form method="post" action="/sync" style="display:inline-block; margin-right:10px;">
-        <button type="submit" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;">
-            Обновить заказы
+    <form method="post" action="/sync" id="syncOrdersForm" style="display:inline-block; margin-right:10px;">
+        <button type="submit" id="syncOrdersBtn" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;">
+            Обновить заказы ⤓
         </button>
+        <span class="sync-spinner" id="syncOrdersSpinner"></span>
     </form>
 
-    <form method="post" action="/sync_statuses" style="display:inline-block; margin-right:10px;">
-        <button type="submit" style="padding:8px 12px; border:0; background:#7b1f2a; color:white; cursor:pointer;">
-            Обновить статусы в WordPress
+    <form method="post" action="/sync_statuses" id="syncStatusesForm" style="display:inline-block; margin-right:10px;">
+        <button type="submit" id="syncStatusesBtn" style="padding:8px 12px; border:0; background:#7b1f2a; color:white; cursor:pointer;">
+            Обновить статусы в WordPress ⤒
         </button>
+        <span class="sync-spinner" id="syncStatusesSpinner"></span>
     </form>
 
     {% if last_sync_at %}
@@ -96,14 +179,17 @@ a{
     <th>Дата/Время</th>
     <th>Клиент</th>
     <th>Телефон</th>
-    <th>Статус</th>
-    <th>Оплата</th>
     <th>Товары</th>
+    <th>Статус</th>
+    <th>Доставка</th>
+    <th>Оплата</th>
     <th>Сумма</th>
+    <th>Комментарий</th>
+    <th class="col-delete">🗑</th>
 </tr>
 
 {% for o in orders %}
-<tr>
+<tr class="order-row" data-woo-id="{{ o['woo_id'] }}">
 <td>
     <a href="/order/{{ o['woo_id'] }}">
         {{ o["woo_id"] }}
@@ -114,8 +200,31 @@ a{
 <td>{{ o["customer_name"] }}</td>
 <td>{{ o["phone"] }}</td>
 
+<td class="products-cell">{{ o.get("products_display", "") }}</td>
+
 <td>
-    <span class="badge {{ o['status_class'] }}">{{ o['status_label'] }}</span>
+    <select class="badge status-select {{ o['status_class'] }}" data-woo-id="{{ o['woo_id'] }}">
+        {% for code, meta in status_badges.items() %}
+            <option value="{{ code }}" {% if code==o['status_code'] %}selected{% endif %}>{{ meta['label'] }}</option>
+        {% endfor %}
+    </select>
+</td>
+
+<td>
+    <span style="display:inline-flex; align-items:center; gap:6px;">
+        <span>
+            {% if (o.get('delivery_service','') or '')|lower == 'ukr' %}
+                Укр
+            {% else %}
+                НП
+            {% endif %}
+        </span>
+        <img
+            src="/assets/{% if (o.get('delivery_service','') or '')|lower == 'ukr' %}up.png{% else %}np.png{% endif %}"
+            alt=""
+            style="width:16px; height:16px; vertical-align:middle;"
+        />
+    </span>
 </td>
 
 <td>
@@ -124,13 +233,175 @@ a{
     {% endif %}
     {{ o.get('payment_state_label','') }}
 </td>
-
-<td>{{ o.get("products_display", "") }}</td>
 <td>{{ o["amount"] }}</td>
+
+<td class="comment-cell" title="{{ o.get('comment','') }}">{{ o.get('comment','') }}</td>
+
+<td class="col-delete">
+    <form method="post" action="/order/{{ o['woo_id'] }}/delete" class="delete-form" data-woo-id="{{ o['woo_id'] }}" style="margin:0;">
+        <button type="submit" class="btn-delete" title="Удалить">✕</button>
+    </form>
+</td>
 </tr>
 {% endfor %}
 
 </table>
+
+<script>
+function wireSyncForm(formId, btnId, spinnerId){
+    const form = document.getElementById(formId);
+    const btn = document.getElementById(btnId);
+    const spinner = document.getElementById(spinnerId);
+    if (!form || !btn || !spinner) return;
+
+    form.addEventListener('submit', () => {
+        spinner.style.display = 'inline-block';
+        btn.disabled = true;
+        btn.style.opacity = '0.7';
+        btn.style.cursor = 'default';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    wireSyncForm('syncOrdersForm', 'syncOrdersBtn', 'syncOrdersSpinner');
+    wireSyncForm('syncStatusesForm', 'syncStatusesBtn', 'syncStatusesSpinner');
+
+    for (const tr of Array.from(document.querySelectorAll('tr.order-row[data-woo-id]'))){
+        tr.addEventListener('click', (e) => {
+            if (e.defaultPrevented) return;
+            const target = e.target;
+            if (!target) return;
+            if (target.closest('select.status-select')) return;
+            if (target.closest('td.col-delete')) return;
+            if (target.closest('form.delete-form')) return;
+            if (target.closest('button.btn-delete')) return;
+            if (target.closest('a')) return;
+            const wooId = tr.dataset.wooId;
+            if (!wooId) return;
+            window.location.href = '/order/' + encodeURIComponent(wooId);
+        });
+    }
+
+    for (const f of Array.from(document.querySelectorAll('form.delete-form[data-woo-id]'))){
+        f.addEventListener('submit', (e) => {
+            const wid = f.dataset.wooId || '';
+            if (!confirm('Удалить заказ ' + wid + '?')){
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+
+    for (const td of Array.from(document.querySelectorAll('td.products-cell'))){
+        const raw = (td.textContent || '').trim();
+        if (!raw) continue;
+
+        // products_display in table is often shortened like: "Добрий x2, Мій, ..."
+        // Color each segment by its leading title keyword.
+        const re = /([^,;]+)([;,]?)/g;
+        let m;
+        let html = '';
+        while ((m = re.exec(raw)) !== null){
+            const seg = (m[1] || '').trim();
+            const sep = m[2] || '';
+            if (!seg){
+                html += sep;
+                continue;
+            }
+
+            const low = seg.toLowerCase();
+            let cls = '';
+            if (low.startsWith('добрий')) cls = 'cal-dobriy';
+            else if (low.startsWith('мій')) cls = 'cal-miy';
+            else if (low.startsWith('світ')) cls = 'cal-svit';
+            else if (low.startsWith('разом')) cls = 'cal-razom';
+
+            if (cls){
+                html += `<span class="${cls}">${seg}</span>${sep}`;
+            } else {
+                html += `${seg}${sep}`;
+            }
+        }
+
+        td.innerHTML = html;
+    }
+});
+</script>
+
+<script>
+function applyBadgeClass(el, cls){
+    if (!el) return;
+    const toRemove = [];
+    for (const c of Array.from(el.classList)){
+        if (c.startsWith('badge--')) toRemove.push(c);
+    }
+    for (const c of toRemove) el.classList.remove(c);
+    if (cls) el.classList.add(cls);
+}
+
+async function postStatus(wooId, status){
+    const r = await fetch('/order/' + encodeURIComponent(wooId) + '/status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status})
+    });
+    const data = await r.json();
+    if (!r.ok){
+        throw new Error((data && data.error) ? data.error : 'Ошибка');
+    }
+    return data;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const STATUS_COLORS = {
+        "new": "#6cad17",
+        "not_paid": "#d32f2f",
+        "hold": "#cddc39",
+        "ttn": "#fb8c00",
+        "confirmed": "#1976d2",
+        "shipped": "#7b1fa2",
+        "canceled": "#616161",
+        "bad": "#212121"
+    };
+
+    const selects = Array.from(document.querySelectorAll('select.status-select[data-woo-id]'));
+    for (const sel of selects){
+        for (const opt of Array.from(sel.options || [])){
+            const v = (opt.value || '').trim();
+            if (STATUS_COLORS[v]){
+                opt.style.color = STATUS_COLORS[v];
+                opt.style.fontWeight = '700';
+            }
+            opt.style.backgroundColor = '#fff';
+        }
+
+        sel.addEventListener('focus', () => {
+            sel.classList.add('dropdown-open');
+        });
+        sel.addEventListener('blur', () => {
+            sel.classList.remove('dropdown-open');
+        });
+
+        sel.addEventListener('change', async () => {
+            const wooId = sel.dataset.wooId;
+            const prev = sel.dataset.prevValue || '';
+            const next = sel.value;
+            sel.disabled = true;
+            try{
+                const res = await postStatus(wooId, next);
+                applyBadgeClass(sel, res.status_class);
+                sel.dataset.prevValue = res.status_code;
+            }catch(e){
+                if (prev) sel.value = prev;
+                alert(e.message || 'Ошибка');
+            }finally{
+                sel.disabled = false;
+            }
+        });
+        sel.dataset.prevValue = sel.value;
+    }
+});
+</script>
 
 </body>
 </html>

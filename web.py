@@ -8,7 +8,7 @@ import woo_api
 
 app = Flask(__name__)
 
-DB_FILE = "crm.db"
+DB_FILE = os.path.join(os.path.dirname(__file__), "crm.db")
 db.set_db_path(DB_FILE)
 db.init_db()
 
@@ -468,6 +468,18 @@ def index():
         order["payment_state_label"] = pay_label
         order["payment_icon_url"] = url_for("asset_file", filename=icon_name) if icon_name else ""
 
+        if not (order.get("delivery_service") or "").strip():
+            if (order.get("city_ref") or "").strip() or (order.get("warehouse_ref") or "").strip():
+                order["delivery_service"] = "np"
+            else:
+                sm = (order.get("shipping_method") or "").lower()
+                if "ukr" in sm or "укр" in sm or "up" in sm:
+                    order["delivery_service"] = "ukr"
+                elif "nova" in sm or "np" in sm:
+                    order["delivery_service"] = "np"
+                else:
+                    order["delivery_service"] = "np"
+
         wid = order.get("woo_id")
         order["products_display"] = format_products_for_table(
             items_by_woo.get(wid, []),
@@ -478,10 +490,40 @@ def index():
     return render_template(
         "index.html",
         orders=orders,
+        status_badges=STATUS_BADGES,
         last_sync_at=_LAST_SYNC_AT,
         last_sync_error=_LAST_SYNC_ERROR,
         last_status_sync_at=_LAST_STATUS_SYNC_AT,
         last_status_sync_error=_LAST_STATUS_SYNC_ERROR,
+    )
+
+
+@app.post("/order/<int:woo_id>/status")
+def update_order_status_inline(woo_id: int):
+    try:
+        payload = request.get_json(silent=True) or {}
+    except Exception:
+        payload = {}
+
+    status_code = (payload.get("status") or request.form.get("status") or "").strip()
+    status_code = normalize_status(status_code)
+
+    if status_code not in STATUS_BADGES:
+        return jsonify({"error": "Invalid status"}), 400
+
+    try:
+        db.update_status(woo_id, status_code)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    badge = STATUS_BADGES.get(status_code, STATUS_BADGES["new"])
+    return jsonify(
+        {
+            "woo_id": woo_id,
+            "status_code": status_code,
+            "status_label": badge.get("label"),
+            "status_class": badge.get("class"),
+        }
     )
 
 
@@ -517,7 +559,12 @@ def sync_statuses_now():
     try:
         _LAST_STATUS_SYNC_ERROR = None
 
-        orders = db.list_orders()
+        started_at = time.time()
+
+        # Sync only latest orders (UI shows last 100)
+        orders = db.list_orders()[:100]
+
+        updates = []
         for o in orders:
             try:
                 woo_id = int(o["woo_id"])
@@ -526,13 +573,20 @@ def sync_statuses_now():
             woo_status = map_crm_status_to_woo(o["status"])
             if not woo_status:
                 continue
-            try:
-                woo_api.update_order_status(woo_id, woo_status)
-                ok += 1
-            except Exception:
-                failed += 1
+            updates.append({"id": woo_id, "status": woo_status})
 
-        _LAST_STATUS_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S") + f" (ok={ok}, fail={failed})"
+        # Use Woo batch endpoint to reduce number of HTTP requests
+        batch_size = 50
+        for i in range(0, len(updates), batch_size):
+            chunk = updates[i : i + batch_size]
+            try:
+                woo_api.update_orders_status_batch(chunk)
+                ok += len(chunk)
+            except Exception:
+                failed += len(chunk)
+
+        elapsed = round(time.time() - started_at, 2)
+        _LAST_STATUS_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S") + f" (ok={ok}, fail={failed}, sec={elapsed})"
     except Exception as e:
         _LAST_STATUS_SYNC_ERROR = str(e)
     finally:

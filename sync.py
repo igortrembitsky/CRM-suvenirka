@@ -1,5 +1,6 @@
 from woo_api import get_orders
 import db
+import os
 from woo_fields import (
     ORDER_FIELDS,
     BILLING_FIELDS,
@@ -9,8 +10,9 @@ from woo_fields import (
     LINE_ITEM_FIELDS
 )
 
-db.set_db_path("crm.db")
-db.init_db()
+if db.DB_PATH is None:
+    db.set_db_path(os.path.join(os.path.dirname(__file__), "crm.db"))
+    db.init_db()
 
 # ---------------------------------
 # FINAL STATUS MAP
@@ -74,7 +76,28 @@ def get_value(obj, path):
 # ---------------------------------
 
 def sync_orders():
-    orders = get_orders(100)
+    per_page = 100
+    max_existing_id = db.get_max_woo_id()
+    page = 1
+    pages_limit = 10
+
+    orders = []
+    while page <= pages_limit:
+        chunk = get_orders(per_page, page=page)
+        if not chunk:
+            break
+
+        orders.extend(chunk)
+
+        if max_existing_id is not None:
+            try:
+                min_id_in_chunk = min(int(x.get("id")) for x in chunk if x.get("id") is not None)
+            except Exception:
+                min_id_in_chunk = None
+            if min_id_in_chunk is not None and min_id_in_chunk <= max_existing_id:
+                break
+
+        page += 1
 
     for o in orders:
 
@@ -113,7 +136,17 @@ def sync_orders():
         postcode = get_value(o, SHIPPING_FIELDS["postcode"])
 
         # ---------- SHIPPING METHOD ----------
-        shipping_method = get_value(o, SHIPPING_LINE_FIELDS["method_id"])
+        shipping_method_id = get_value(o, SHIPPING_LINE_FIELDS["method_id"])
+        shipping_method_title = get_value(o, SHIPPING_LINE_FIELDS["method_title"])
+        shipping_method = (shipping_method_title or shipping_method_id or "")
+        shipping_method_full = " ".join([str(shipping_method_id or "").strip(), str(shipping_method_title or "").strip()]).strip()
+
+        sm_l = (shipping_method_full or shipping_method or "").lower()
+        delivery_service = "np"
+        if "ukr" in sm_l or "укр" in sm_l:
+            delivery_service = "ukr"
+        elif "nova" in sm_l or "np" in sm_l:
+            delivery_service = "np"
 
         # ---------- META ----------
         warehouse_name = ""
@@ -126,11 +159,11 @@ def sync_orders():
                 city = m.get("value")
 
         # ---------- ADDRESS LOGIC ----------
-        if "nova" in shipping_method:
+        if "nova" in (shipping_method_id or "").lower() or "nova" in (shipping_method_title or "").lower() or "np" in (shipping_method_id or "").lower() or "np" in (shipping_method_title or "").lower():
             if warehouse_name:
                 address = warehouse_name
 
-        elif "ukr" in shipping_method:
+        elif "ukr" in (shipping_method_id or "").lower() or "ukr" in (shipping_method_title or "").lower() or "укр" in (shipping_method_title or "").lower():
             if postcode:
                 address = f"{address}, {postcode}"
 
@@ -153,7 +186,8 @@ def sync_orders():
             "items": items,
             "amount": float(get_value(o, ORDER_FIELDS["total"])),
             "status": status,
-            "shipping_method": shipping_method,
+            "delivery_service": delivery_service,
+            "shipping_method": shipping_method_full or shipping_method,
             "payment_method": get_value(o, ORDER_FIELDS["payment_method_title"]),
             "comment": comment
         }

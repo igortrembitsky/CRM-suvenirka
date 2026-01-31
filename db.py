@@ -162,7 +162,8 @@ def list_orders():
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product
+        SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product,
+               delivery_service, shipping_method, city_ref, warehouse_ref, comment
         FROM orders
         ORDER BY woo_id DESC
     """)
@@ -170,6 +171,18 @@ def list_orders():
     rows = cur.fetchall()
     conn.close()
     return rows
+
+
+def get_max_woo_id():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT MAX(woo_id) FROM orders")
+    row = cur.fetchone()
+    conn.close()
+    try:
+        return int(row[0]) if row and row[0] is not None else None
+    except Exception:
+        return None
 
 
 def get_order_items_for_orders(woo_ids):

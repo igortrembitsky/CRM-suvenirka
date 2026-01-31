@@ -312,13 +312,13 @@ button{
 <div>
 <label>Город</label>
 <input type="text" name="city" id="cityInput" value="{{ o.get('city','') }}" list="npCitiesList">
-<input type="hidden" name="city_ref" id="cityRefInput" value="{{ o.get('city_ref','') }}">
+<input type="hidden" name="city_ref" id="cityRefInput" value="{{ o.get('city_ref') or '' }}">
 </div>
 
 <div>
 <label>Отделение / Индекс</label>
 <input type="text" name="address" id="warehouseInput" value="{{ o.get('address','') }}" list="npWarehousesList">
-<input type="hidden" name="warehouse_ref" id="warehouseRefInput" value="{{ o.get('warehouse_ref','') }}">
+<input type="hidden" name="warehouse_ref" id="warehouseRefInput" value="{{ o.get('warehouse_ref') or '' }}">
 </div>
 </div>
 
@@ -403,6 +403,7 @@ button{
     </button>
 
     <button type="submit"
+            formaction="/order/{{ o['woo_id'] }}?close=1"
             style="background:#222;color:#fff;">
       Сохранить
     </button>
@@ -457,7 +458,42 @@ async function ensureWooOptionsLoaded(){
         optionsSelect.appendChild(opt);
     }
 
+    applyCalendarColorsToSelect(optionsSelect);
+
     _wooListLoaded = true;
+}
+
+function getCalendarColorByName(name){
+    const n = String(name || '').trim();
+    if (!n) return '';
+    if (n.includes('Добрий Рік 2026 — мотиваційний календар')) return '#6d4c41';
+    if (n.includes('Мій Рік 2026 — мотиваційний календар')) return '#2e7d32';
+    if (n.includes('Світ Яскравих Днів 2026 — мотиваційний календар')) return '#1565c0';
+    if (n.includes('Разом до Щастя 2026 — мотиваційний календар')) return '#c2185b';
+    return '';
+}
+
+function applyCalendarColorsToSelect(selectEl){
+    if (!selectEl) return;
+    for (const opt of Array.from(selectEl.options || [])){
+        const c = getCalendarColorByName(opt.value);
+        if (c){
+            opt.style.color = c;
+            opt.style.fontWeight = '700';
+        } else {
+            opt.style.color = '';
+            opt.style.fontWeight = '';
+        }
+    }
+
+    const selectedColor = getCalendarColorByName(selectEl.value);
+    if (selectedColor){
+        selectEl.style.color = selectedColor;
+        selectEl.style.fontWeight = '700';
+    } else {
+        selectEl.style.color = '';
+        selectEl.style.fontWeight = '';
+    }
 }
 
 function fillProductSelect(selectEl, selectedName){
@@ -476,6 +512,8 @@ function fillProductSelect(selectEl, selectedName){
             selectEl.value = selectedName;
         }
     }
+
+    applyCalendarColorsToSelect(selectEl);
 }
 
 function addRow(){
@@ -514,6 +552,7 @@ function wireRow(row){
 
     ensureWooOptionsLoaded().then(() => {
         fillProductSelect(nameInput, initName);
+        applyCalendarColorsToSelect(nameInput);
         applyPriceFromName();
         recalcRow();
     });
@@ -550,6 +589,7 @@ function wireRow(row){
     }
 
     nameInput.addEventListener('change', () => {
+        applyCalendarColorsToSelect(nameInput);
         applyPriceFromName();
         recalcRow();
     });
@@ -718,7 +758,7 @@ if (paymentSelect){
 }
 
 function isNpDelivery(){
-    return !!deliverySelect && deliverySelect.value === "np";
+    return !!deliverySelect && (String(deliverySelect.value || '').trim() === "np");
 }
 
 async function fetchNpCities(q){
@@ -782,7 +822,9 @@ async function updateCities(){
 async function updateWarehouses(){
     if (!isNpDelivery()) return;
     if (!warehouseInput || !npWarehousesList || !cityRefInput) return;
-    const cityRef = (cityRefInput.value || '').trim();
+    const cityRefRaw = (cityRefInput.value || '').trim();
+    const cityRefLow = cityRefRaw.toLowerCase();
+    const cityRef = (cityRefLow && cityRefLow !== 'none' && cityRefLow !== 'null' && cityRefLow !== 'undefined') ? cityRefRaw : '';
     const q = (warehouseInput.value || '').trim();
     if (!cityRef){
         _npWarehouseSuggestions = [];
