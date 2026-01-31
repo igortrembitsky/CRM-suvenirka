@@ -22,10 +22,44 @@ body{
 
 /* ----- TOP BAR ----- */
 .topbar{
-    display:flex;
-    justify-content:space-between;
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
     align-items:center;
     margin-bottom:20px;
+}
+
+.topbar h2{
+    margin:0;
+}
+
+.order-nav{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:20px;
+}
+
+.order-nav a{
+    text-decoration:none;
+    color:#111;
+    font-weight:700;
+    font-size:14px;
+}
+
+.order-nav .arrow{
+    font-size:18px;
+    margin:0 6px;
+}
+
+.order-nav .disabled{
+    color:#aaa;
+    font-weight:700;
+    font-size:14px;
+}
+
+.status-wrap{
+    display:flex;
+    justify-content:flex-end;
 }
 
 /* ----- FORM ----- */
@@ -79,10 +113,10 @@ label{
 .badge--not_paid{background:#d32f2f;}
 .badge--hold{background:#cddc39;color:#111;}
 .badge--ttn{background:#fb8c00;}
-.badge--confirmed_np{background:#1976d2;}
-.badge--confirmed_up{background:#03a9f4;}
+.badge--confirmed{background:#1976d2;}
 .badge--shipped{background:#7b1fa2;}
 .badge--canceled{background:#616161;}
+.badge--bad{background:#111;}
 
 /* ----- ITEMS TABLE ----- */
 .items{
@@ -99,8 +133,9 @@ label{
 
 .items th:nth-child(1){width:55%;}
 .items th:nth-child(2){width:10%;}
-.items th:nth-child(3){width:25%;}
-.items th:nth-child(4){width:40px;}
+.items th:nth-child(3){width:20%;}
+.items th:nth-child(4){width:10%;}
+.items th:nth-child(5){width:40px;}
 
 .items th{
     background:#f3f3f3;
@@ -150,7 +185,23 @@ button{
 
 <div class="topbar">
     <h2>Заказ №{{ o['woo_id'] }}</h2>
-    <span class="badge badge--{{ o['status_code'] }}">{{ o['status_label'] }}</span>
+    <div class="order-nav">
+        {% if prev_woo_id %}
+            <a href="/order/{{ prev_woo_id }}"><span class="arrow">&larr;</span>Предыдущий</a>
+        {% else %}
+            <span class="disabled"><span class="arrow">&larr;</span>Предыдущий</span>
+        {% endif %}
+
+        {% if next_woo_id %}
+            <a href="/order/{{ next_woo_id }}">Следующий<span class="arrow">&rarr;</span></a>
+        {% else %}
+            <span class="disabled">Следующий<span class="arrow">&rarr;</span></span>
+        {% endif %}
+    </div>
+
+    <div class="status-wrap">
+        <span class="badge badge--{{ o['status_code'] }}">{{ o['status_label'] }}</span>
+    </div>
 </div>
 
 <form method="post">
@@ -160,26 +211,35 @@ button{
 <div class="row">
 <label>Товары</label>
 
+<select id="wooProductOptions" style="display:none;"></select>
+
 <table class="items" id="itemsTable">
 <tr>
     <th>Товар</th>
     <th>Кол-во</th>
     <th>Сумма</th>
+    <th>Авто</th>
     <th></th>
 </tr>
 
 {% for it in items %}
 <tr>
 <td>
-<input type="text" name="item_name" value="{{ it.get('name','') }}">
+<select name="item_name" class="item-name" style="width:100%;"></select>
+<input type="hidden" class="item-name-init" value="{{ it.get('name','') }}">
 </td>
 
 <td>
-<input type="number" name="item_qty" value="{{ it.get('qty',1) }}">
+<input type="number" name="item_qty" class="item-qty" value="{{ it.get('qty',1) }}" min="1">
 </td>
 
 <td>
-<input type="text" name="amount" value="{{ o.get('amount','') }}">
+<input type="text" name="item_amount" class="item-amount" value="{{ it.get('amount','') }}">
+</td>
+
+<td style="text-align:center;">
+<input type="hidden" name="item_amount_auto" class="item-amount-auto-hidden" value="{% if it.get('amount_auto') is none or it.get('amount_auto')==1 %}1{% else %}0{% endif %}">
+<input type="checkbox" class="item-amount-auto" {% if it.get('amount_auto') is none or it.get('amount_auto')==1 %}checked{% endif %} style="width:auto;">
 </td>
 
 <td>
@@ -192,28 +252,32 @@ button{
 <button type="button" onclick="addRow()">+ Добавить</button>
 </div>
 
-<!-- ================= ДОСТАВКА ================= -->
-
 <div class="row">
+<div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
 
-<div class="grid-2">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div>
+      <label style="margin:0;">Доставка</label>
+      <select name="delivery_service" id="deliveryServiceSelect" style="width:220px;">
+        <option value="np" {% if o.get('delivery_service')=='np' %}selected{% endif %}>
+          Нова пошта
+        </option>
+        <option value="ukr" {% if o.get('delivery_service')=='ukr' %}selected{% endif %}>
+          Укрпошта
+        </option>
+      </select>
+    </div>
 
-  <div></div>
-
-  <div>
-    <label>Доставка</label>
-    <select name="delivery_service">
-      <option value="np" {% if o.get('delivery_service')=='np' %}selected{% endif %}>
-        Нова пошта
-      </option>
-      <option value="ukr" {% if o.get('delivery_service')=='ukr' %}selected{% endif %}>
-        Укрпошта
-      </option>
-    </select>
+    <img id="deliveryIcon" src="/assets/{% if o.get('delivery_service')=='ukr' %}up.png{% else %}np.png{% endif %}" alt="" style="height:22px; width:auto; margin-top:18px;">
   </div>
 
-</div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <label style="margin:0; font-weight:700; font-size:14px;">Итог</label>
+    <input type="text" id="itemsTotal" value="" readonly style="width:140px;">
+  </div>
 
+  <input type="hidden" name="amount" id="orderAmountHidden" value="{{ o.get('amount','') }}">
+</div>
 </div>
 
 <!-- ================= КОНТАКТЫ ================= -->
@@ -231,13 +295,13 @@ button{
 </div>
 
 <div>
-<label>Ім'я та (по-батькові)</label>
-<input type="text" name="first_name" value="{{ o.get('first_name','') }} {{ o.get('middle_name','') }}">
+<label>Ім'я</label>
+<input type="text" name="first_name" value="{{ o.get('first_name_only', o.get('first_name','')) }}">
 </div>
 
 <div id="middleNameBlock">
 <label>По-батькові</label>
-<input type="text" name="middle_name" value="{{ o.get('company','') }}">
+<input type="text" name="patronymic" value="{{ o.get('patronymic','') }}">
 </div>
 
 </div>
@@ -247,25 +311,39 @@ button{
 <div class="grid-2">
 <div>
 <label>Город</label>
-<input type="text" name="city" value="{{ o.get('city','') }}">
+<input type="text" name="city" id="cityInput" value="{{ o.get('city','') }}" list="npCitiesList">
+<input type="hidden" name="city_ref" id="cityRefInput" value="{{ o.get('city_ref','') }}">
 </div>
 
 <div>
 <label>Отделение / Индекс</label>
-<input type="text" name="address" value="{{ o.get('address','') }}">
+<input type="text" name="address" id="warehouseInput" value="{{ o.get('address','') }}" list="npWarehousesList">
+<input type="hidden" name="warehouse_ref" id="warehouseRefInput" value="{{ o.get('warehouse_ref','') }}">
 </div>
 </div>
+
+<datalist id="npCitiesList"></datalist>
+<datalist id="npWarehousesList"></datalist>
 
 <!-- ================= ОПЛАТА / СТАТУС ================= -->
 
 <div class="grid-2">
 <div>
 <label>Оплата</label>
-<select name="payment_state">
-<option value="not_paid">Не оплачено</option>
-<option value="cod">Готівка при отриманні</option>
-<option value="paid">Оплачено</option>
+<div style="display:flex; align-items:center; gap:10px;">
+<select name="payment_state" id="paymentStateSelect">
+<option value="not_paid" {% if o.get('payment_state','')=='not_paid' %}selected{% endif %}>Не оплачено</option>
+<option value="cod" {% if o.get('payment_state','')=='cod' %}selected{% endif %}>Готівка при отриманні</option>
+<option value="paid" {% if o.get('payment_state','')=='paid' %}selected{% endif %}>Оплачено LiqPay</option>
+<option value="card" {% if o.get('payment_state','')=='card' %}selected{% endif %}>Оплата на карту</option>
 </select>
+
+<img
+  id="paymentIcon"
+  src=""
+  alt=""
+  style="height:18px; width:auto;" />
+</div>
 </div>
 
 <div>
@@ -290,7 +368,6 @@ button{
 <!-- ================= КНОПКИ ================= -->
 <div class="actions">
 
-  <!-- ЛЕВО -->
   <div class="left-actions">
     <button
       formaction="{{ url_for('delete_order', woo_id=o['woo_id']) }}"
@@ -298,26 +375,19 @@ button{
       style="background:#8b1d1d;color:#fff;">
       Удалить
     </button>
-
   </div>
 
-  <!-- ЦЕНТР -->
   <div class="center-actions">
     <button type="submit"
+            formaction="{{ url_for('order_card', woo_id=o['woo_id'], close=1) }}"
             name="quick_status"
-            value="confirmed_np"
+            value="confirmed"
             style="background:#1976d2;color:#fff;">
-      Підтверджен НП
+      Підтверджен
     </button>
 
     <button type="submit"
-            name="quick_status"
-            value="confirmed_up"
-            style="background:#2196f3;color:#fff;">
-      Підтверджен УП
-    </button>
-
-    <button type="submit"
+            formaction="{{ url_for('order_card', woo_id=o['woo_id'], close=1) }}"
             name="quick_status"
             value="ttn"
             style="background:#fb8c00;color:#fff;">
@@ -325,7 +395,6 @@ button{
     </button>
   </div>
 
-  <!-- ПРАВО -->
   <div class="right-actions">
     <button type="button"
             onclick="window.location='/'"
@@ -346,22 +415,186 @@ button{
 </div>
 
 <script>
+let _wooPriceCache = {};
+let _wooListLoaded = false;
+
+function parseNumber(val){
+    const s = String(val ?? '').trim().replace(',', '.');
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+}
+
+function formatMoney(n){
+    if (n === null || n === undefined) return '';
+    return String(Math.round(n * 100) / 100);
+}
+
+async function fetchWooProducts(q){
+    const url = '/woo/products?q=' + encodeURIComponent(q || '');
+    const r = await fetch(url);
+    const data = await r.json();
+    if (!Array.isArray(data)) return [];
+    return data;
+}
+
+async function ensureWooOptionsLoaded(){
+    if (_wooListLoaded) return;
+    const products = await fetchWooProducts('');
+
+    const optionsSelect = document.getElementById('wooProductOptions');
+    if (!optionsSelect) return;
+    optionsSelect.innerHTML = '';
+
+    for (const p of products){
+        const name = (p.name || '').trim();
+        if (!name) continue;
+        const price = parseNumber(p.price);
+        if (price !== null) _wooPriceCache[name] = price;
+
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        optionsSelect.appendChild(opt);
+    }
+
+    _wooListLoaded = true;
+}
+
+function fillProductSelect(selectEl, selectedName){
+    const optionsSelect = document.getElementById('wooProductOptions');
+    if (!selectEl || !optionsSelect) return;
+
+    selectEl.innerHTML = optionsSelect.innerHTML;
+
+    if (selectedName){
+        selectEl.value = selectedName;
+        if (selectEl.value !== selectedName){
+            const opt = document.createElement('option');
+            opt.value = selectedName;
+            opt.textContent = selectedName;
+            selectEl.appendChild(opt);
+            selectEl.value = selectedName;
+        }
+    }
+}
+
 function addRow(){
     let t=document.getElementById("itemsTable");
     let r=t.insertRow(-1);
     r.innerHTML=`
-<td><input type="text" name="item_name"></td>
-<td><input type="number" name="item_qty" value="1"></td>
-<td><input type="text" name="amount"></td>
+<td>
+  <select name="item_name" class="item-name" style="width:100%;"></select>
+</td>
+<td><input type="number" name="item_qty" class="item-qty" value="1" min="1"></td>
+<td><input type="text" name="item_amount" class="item-amount" value=""></td>
+<td style="text-align:center;">
+  <input type="hidden" name="item_amount_auto" class="item-amount-auto-hidden" value="1">
+  <input type="checkbox" class="item-amount-auto" checked style="width:auto;">
+</td>
 <td><button type="button" onclick="removeRow(this)">×</button></td>
 `;
+    wireRow(r);
 }
 
 function removeRow(btn){
     btn.closest("tr").remove();
+    recalcTotals();
 }
-</script>
 
+function wireRow(row){
+    const nameInput = row.querySelector('.item-name');
+    const qtyInput = row.querySelector('.item-qty');
+    const amtInput = row.querySelector('.item-amount');
+    const autoCb = row.querySelector('.item-amount-auto');
+    const autoHidden = row.querySelector('.item-amount-auto-hidden');
+    if (!nameInput || !qtyInput || !amtInput || !autoCb || !autoHidden) return;
+
+    const init = row.querySelector('.item-name-init');
+    const initName = init ? (init.value || '').trim() : '';
+
+    ensureWooOptionsLoaded().then(() => {
+        fillProductSelect(nameInput, initName);
+        applyPriceFromName();
+        recalcRow();
+    });
+
+    function applyPriceFromName(){
+        const name = (nameInput.value || '').trim();
+        const price = _wooPriceCache[name];
+        if (price !== undefined){
+            nameInput.dataset.price = String(price);
+        } else {
+            nameInput.dataset.price = '';
+        }
+    }
+
+    function recalcRow(){
+        const qty = parseInt(qtyInput.value || '1', 10);
+        const price = parseNumber(nameInput.dataset.price);
+        const isAuto = !!autoCb.checked;
+
+        autoHidden.value = isAuto ? '1' : '0';
+
+        if (isAuto){
+            amtInput.readOnly = true;
+            if (Number.isFinite(qty) && qty > 0 && price !== null){
+                amtInput.value = formatMoney(price * qty);
+            } else {
+                amtInput.value = '';
+            }
+        } else {
+            amtInput.readOnly = false;
+        }
+
+        recalcTotals();
+    }
+
+    nameInput.addEventListener('change', () => {
+        applyPriceFromName();
+        recalcRow();
+    });
+
+    qtyInput.addEventListener('input', recalcRow);
+    autoCb.addEventListener('change', recalcRow);
+
+    amtInput.addEventListener('input', () => {
+        if (!autoCb.checked){
+            recalcTotals();
+        }
+    });
+}
+
+function recalcTotals(){
+    const rows = Array.from(document.querySelectorAll('#itemsTable tr')).slice(1);
+    let total = 0;
+    let found = false;
+    for (const row of rows){
+        const amtInput = row.querySelector('.item-amount');
+        if (!amtInput) continue;
+        const v = parseNumber(amtInput.value);
+        if (v === null) continue;
+        total += v;
+        found = true;
+    }
+
+    const totalStr = found ? formatMoney(total) : '';
+    const itemsTotal = document.getElementById('itemsTotal');
+    if (itemsTotal) itemsTotal.value = totalStr;
+
+    const orderAmountHidden = document.getElementById('orderAmountHidden');
+    if (orderAmountHidden){
+        orderAmountHidden.value = totalStr;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const rows = Array.from(document.querySelectorAll('#itemsTable tr')).slice(1);
+    for (const row of rows){
+        wireRow(row);
+    }
+    recalcTotals();
+});
+</script>
 
 <script>
 document.addEventListener("DOMContentLoaded", function(){
@@ -371,23 +604,40 @@ document.addEventListener("DOMContentLoaded", function(){
 
     if(!statusSelect || !badge) return;
 
-    // соответствие статусов и css-классов
+    const STATUS_COLORS = {
+        "new": "#2e7d32",
+        "not_paid": "#d32f2f",
+        "hold": "#cddc39",
+        "ttn": "#fb8c00",
+        "confirmed": "#1976d2",
+        "shipped": "#7b1fa2",
+        "canceled": "#616161",
+        "bad": "#111"
+    };
+
+    for (const opt of Array.from(statusSelect.options || [])){
+        const v = (opt.value || '').trim();
+        if (STATUS_COLORS[v]){
+            opt.style.color = STATUS_COLORS[v];
+            opt.style.fontWeight = '700';
+        }
+    }
+
     const STATUS_CLASSES = {
         "new": "badge--new",
         "not_paid": "badge--not_paid",
         "hold": "badge--hold",
         "ttn": "badge--ttn",
-        "confirmed_np": "badge--confirmed_np",
-        "confirmed_up": "badge--confirmed_up",
+        "confirmed": "badge--confirmed",
         "shipped": "badge--shipped",
-        "canceled": "badge--canceled"
+        "canceled": "badge--canceled",
+        "bad": "badge--bad"
     };
 
     function updateBadge(){
         const value = statusSelect.value;
         const label = statusSelect.options[statusSelect.selectedIndex].text;
 
-        // убираем все классы badge--
         badge.className = "badge";
 
         if(STATUS_CLASSES[value]){
@@ -395,16 +645,41 @@ document.addEventListener("DOMContentLoaded", function(){
         }
 
         badge.textContent = label;
+
+        if (STATUS_COLORS[value]){
+            statusSelect.style.color = STATUS_COLORS[value];
+            statusSelect.style.fontWeight = '700';
+        } else {
+            statusSelect.style.color = '';
+            statusSelect.style.fontWeight = '';
+        }
     }
 
+    updateBadge();
     statusSelect.addEventListener("change", updateBadge);
-
 });
 </script>
 
 <script>
 const deliverySelect = document.querySelector('[name="delivery_service"]');
 const middleBlock = document.getElementById("middleNameBlock");
+
+const deliveryIcon = document.getElementById("deliveryIcon");
+
+const paymentSelect = document.getElementById("paymentStateSelect");
+const paymentIcon = document.getElementById("paymentIcon");
+
+const cityInput = document.getElementById("cityInput");
+const cityRefInput = document.getElementById("cityRefInput");
+const warehouseInput = document.getElementById("warehouseInput");
+const warehouseRefInput = document.getElementById("warehouseRefInput");
+const npCitiesList = document.getElementById("npCitiesList");
+const npWarehousesList = document.getElementById("npWarehousesList");
+
+let _npCitySuggestions = [];
+let _npWarehouseSuggestions = [];
+let _npCitiesTimer = null;
+let _npWarehousesTimer = null;
 
 function toggleMiddleName(){
     if(!deliverySelect || !middleBlock) return;
@@ -416,10 +691,166 @@ function toggleMiddleName(){
     }
 }
 
+function updatePaymentIcon(){
+    if (!paymentSelect || !paymentIcon) return;
+    const v = (paymentSelect.value || '').toLowerCase();
+    const map = {
+        'not_paid': '/assets/notpay.png',
+        'cod': '/assets/go.png',
+        'paid': '/assets/liq.png',
+        'card': '/assets/card.png',
+    };
+    paymentIcon.src = map[v] || '';
+    paymentIcon.style.display = paymentIcon.src ? 'inline-block' : 'none';
+}
+
 if(deliverySelect){
     deliverySelect.addEventListener("change", toggleMiddleName);
-    toggleMiddleName();
+    deliverySelect.addEventListener("change", function(){
+        if(!deliveryIcon) return;
+        deliveryIcon.src = (deliverySelect.value === "ukr") ? "/assets/up.png" : "/assets/np.png";
+    });
 }
+
+if (paymentSelect){
+    updatePaymentIcon();
+    paymentSelect.addEventListener('change', updatePaymentIcon);
+}
+
+function isNpDelivery(){
+    return !!deliverySelect && deliverySelect.value === "np";
+}
+
+async function fetchNpCities(q){
+    const r = await fetch('/np/cities?q=' + encodeURIComponent(q || ''));
+    const data = await r.json();
+    return Array.isArray(data) ? data : [];
+}
+
+async function fetchNpWarehouses(cityRef, q){
+    const r = await fetch('/np/warehouses?city_ref=' + encodeURIComponent(cityRef || '') + '&q=' + encodeURIComponent(q || ''));
+    const data = await r.json();
+    return Array.isArray(data) ? data : [];
+}
+
+function fillDatalist(dl, items, getValue){
+    if (!dl) return;
+    dl.innerHTML = '';
+    for (const it of items){
+        const opt = document.createElement('option');
+        opt.value = getValue(it);
+        dl.appendChild(opt);
+    }
+}
+
+function syncCityRefFromInput(){
+    if (!cityInput || !cityRefInput) return;
+    const v = (cityInput.value || '').trim();
+    const match = _npCitySuggestions.find(c => (c.name || '').trim() === v);
+    if (match && match.ref){
+        cityRefInput.value = match.ref;
+    } else {
+        cityRefInput.value = '';
+    }
+}
+
+function syncWarehouseRefFromInput(){
+    if (!warehouseInput || !warehouseRefInput) return;
+    const v = (warehouseInput.value || '').trim();
+    const match = _npWarehouseSuggestions.find(w => (w.name || '').trim() === v);
+    if (match && match.ref){
+        warehouseRefInput.value = match.ref;
+    } else {
+        warehouseRefInput.value = '';
+    }
+}
+
+async function updateCities(){
+    if (!isNpDelivery()) return;
+    if (!cityInput || !npCitiesList) return;
+    const q = (cityInput.value || '').trim();
+    if (q.length < 2){
+        _npCitySuggestions = [];
+        fillDatalist(npCitiesList, [], () => '');
+        return;
+    }
+    const items = await fetchNpCities(q);
+    _npCitySuggestions = items;
+    fillDatalist(npCitiesList, items, (c) => (c.name || '').trim());
+}
+
+async function updateWarehouses(){
+    if (!isNpDelivery()) return;
+    if (!warehouseInput || !npWarehousesList || !cityRefInput) return;
+    const cityRef = (cityRefInput.value || '').trim();
+    const q = (warehouseInput.value || '').trim();
+    if (!cityRef){
+        _npWarehouseSuggestions = [];
+        fillDatalist(npWarehousesList, [], () => '');
+        return;
+    }
+    const items = await fetchNpWarehouses(cityRef, q);
+    _npWarehouseSuggestions = items;
+    fillDatalist(npWarehousesList, items, (w) => (w.name || '').trim());
+}
+
+function clearNpRefsAndWarehouses(){
+    if (cityRefInput) cityRefInput.value = '';
+    if (warehouseRefInput) warehouseRefInput.value = '';
+    _npWarehouseSuggestions = [];
+    if (npWarehousesList) npWarehousesList.innerHTML = '';
+}
+
+if (cityInput){
+    cityInput.addEventListener('input', () => {
+        if (!isNpDelivery()) return;
+        clearTimeout(_npCitiesTimer);
+        _npCitiesTimer = setTimeout(updateCities, 250);
+
+        clearNpRefsAndWarehouses();
+    });
+
+    cityInput.addEventListener('change', async () => {
+        if (!isNpDelivery()) return;
+        syncCityRefFromInput();
+        if (warehouseInput) warehouseInput.value = '';
+        if (warehouseRefInput) warehouseRefInput.value = '';
+        await updateWarehouses();
+    });
+}
+
+if (warehouseInput){
+    warehouseInput.addEventListener('input', () => {
+        if (!isNpDelivery()) return;
+        clearTimeout(_npWarehousesTimer);
+        _npWarehousesTimer = setTimeout(updateWarehouses, 250);
+        if (warehouseRefInput) warehouseRefInput.value = '';
+    });
+
+    warehouseInput.addEventListener('change', () => {
+        if (!isNpDelivery()) return;
+        syncWarehouseRefFromInput();
+    });
+}
+
+if (deliverySelect){
+    deliverySelect.addEventListener('change', () => {
+        if (!isNpDelivery()){
+            if (npCitiesList) npCitiesList.innerHTML = '';
+            if (npWarehousesList) npWarehousesList.innerHTML = '';
+            return;
+        }
+        updateCities();
+        updateWarehouses();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (isNpDelivery()){
+        updateCities();
+        updateWarehouses();
+    }
+});
 </script>
 
 </body>

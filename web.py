@@ -32,8 +32,7 @@ CRM_TO_WOO_STATUS = {
     "paid": "pay",
     "hold": "on-hold",
     "ttn": "ttn",
-    "confirmed_np": "confirmed",
-    "confirmed_up": "confirmed",
+    "confirmed": "confirmed",
     "shipped": "completed",
     "canceled": "cancelled",
     "bad": "crazy",
@@ -46,7 +45,7 @@ def map_crm_status_to_woo(raw_status: str):
 
 
 PAYMENT_STATE_LABELS = {
-    "paid": "Оплачено",
+    "paid": "Оплачено LiqPay",
     "cod": "Готівка при отриманні",
     "card": "Оплата на карту",
     "not_paid": "Не оплачено",
@@ -54,7 +53,7 @@ PAYMENT_STATE_LABELS = {
 
 
 PAYMENT_STATE_ICONS = {
-    "cod": "np.png",
+    "cod": "go.png",
     "paid": "liq.png",
     "card": "card.png",
     "not_paid": "notpay.png",
@@ -158,7 +157,7 @@ def infer_payment_state(order: dict):
 @app.get("/assets/<path:filename>")
 def asset_file(filename: str):
     # serve only explicitly allowed icon files from project root
-    allowed = {"np.png", "liq.png", "card.png", "notpay.png"}
+    allowed = {"np.png", "up.png", "liq.png", "card.png", "notpay.png", "go.png"}
     if filename not in allowed:
         return abort(404)
     root = os.path.abspath(os.path.dirname(__file__))
@@ -256,20 +255,61 @@ def compute_items_total(items):
 
     return round(total, 2)
 
+
+def compute_items_total_with_overrides(items):
+    price_map = _get_woo_price_map()
+    total = 0.0
+    found_any = False
+
+    for it in items or []:
+        name = (it.get("name") or "").strip()
+        if not name:
+            continue
+
+        try:
+            qty = int(it.get("qty") or 1)
+        except Exception:
+            qty = 1
+
+        try:
+            amount_auto = 1 if int(it.get("amount_auto") or 0) == 1 else 0
+        except Exception:
+            amount_auto = 0
+
+        if amount_auto == 1:
+            price = price_map.get(name)
+            if price is None:
+                continue
+            total += price * qty
+            found_any = True
+            continue
+
+        # manual amount
+        amt = it.get("amount")
+        try:
+            amt = float(str(amt).replace(",", ".")) if amt is not None and str(amt).strip() != "" else None
+        except Exception:
+            amt = None
+        if amt is None:
+            continue
+        total += amt
+        found_any = True
+
+    if not found_any:
+        return None
+
+    return round(total, 2)
+
 # Единый справочник статусов (код -> отображение + css)
 STATUS_BADGES = {
     "new": {"label": "Новий", "class": "badge--new"},
     "not_paid": {"label": "Не оплачено", "class": "badge--not-paid"},
     "hold": {"label": "На утриманні", "class": "badge--hold"},
     "ttn": {"label": "Створено ТТН", "class": "badge--ttn"},
-    "confirmed_np": {"label": "Підтверджен НП", "class": "badge--confirmed-np"},
-    "confirmed_up": {"label": "Підтверджен УП", "class": "badge--confirmed-up"},
+    "confirmed": {"label": "Підтверджен", "class": "badge--confirmed"},
     "shipped": {"label": "Відправлено", "class": "badge--shipped"},
     "canceled": {"label": "Скасовано", "class": "badge--canceled"},
     "bad": {"label": "Неадекват", "class": "badge--bad"},
-
-    # запасной (если появится)
-    "paid": {"label": "Оплачено", "class": "badge--paid"},
 }
 
 
@@ -287,10 +327,8 @@ def normalize_status(raw_status: str):
         return "hold"
     if sl in ("ttn", "ttn_created"):
         return "ttn"
-    if sl in ("confirmed_np", "np_confirmed", "confirmed-np"):
-        return "confirmed_np"
-    if sl in ("confirmed_up", "up_confirmed", "confirmed-up"):
-        return "confirmed_up"
+    if sl in ("confirmed", "confirmed_np", "confirmed_up", "np_confirmed", "up_confirmed", "confirmed-np", "confirmed-up"):
+        return "confirmed"
     if sl in ("shipped", "completed"):
         return "shipped"
     if sl in ("canceled", "cancelled"):
@@ -298,7 +336,7 @@ def normalize_status(raw_status: str):
     if sl in ("bad", "crazy"):
         return "bad"
     if sl in ("paid", "pay"):
-        return "paid"
+        return "confirmed"
 
     # --- legacy text values in DB (ua/ru) ---
     if s in ("Новий", "Новый"):
@@ -309,10 +347,12 @@ def normalize_status(raw_status: str):
         return "hold"
     if s in ("Створено ТТН", "Создана ТТН"):
         return "ttn"
+    if s in ("Підтверджено", "Підтверджен", "Подтверждён"):
+        return "confirmed"
     if s in ("Підтверджено НП", "Підтверджен НП", "Подтверждён НП"):
-        return "confirmed_np"
+        return "confirmed"
     if s in ("Підтверджено УП", "Підтверджен УП", "Подтверждён УП"):
-        return "confirmed_up"
+        return "confirmed"
     if s in ("Відправлено", "Отправлено"):
         return "shipped"
     if s in ("Скасовано", "Отменён"):
@@ -548,7 +588,8 @@ def woo_products():
         return jsonify(cached)
 
     try:
-        products = woo_api.get_products(per_page=50, search=q or None)
+        per_page = 100 if not q else 50
+        products = woo_api.get_products(per_page=per_page, search=q or None)
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
@@ -614,7 +655,10 @@ def order_card(woo_id: int):
         return "Заказ не найден", 404
 
     if request.method == "POST":
+        close_after_save = (request.args.get("close") or "").strip() == "1"
+
         first_name = (request.form.get("first_name") or "").strip()
+        patronymic = (request.form.get("patronymic") or "").strip()
         last_name = (request.form.get("last_name") or "").strip()
         phone = (request.form.get("phone") or "").strip()
         city = (request.form.get("city") or "").strip()
@@ -623,17 +667,26 @@ def order_card(woo_id: int):
         warehouse_ref = (request.form.get("warehouse_ref") or "").strip()
         comment = (request.form.get("comment") or "").strip()
         status_code = (request.form.get("status") or "new").strip()
+        quick_status = (request.form.get("quick_status") or "").strip()
+        if quick_status:
+            status_code = quick_status
 
         delivery_service = (request.form.get("delivery_service") or "").strip()
         payment_state = (request.form.get("payment_state") or "").strip()
+
+        # Persist patronymic inside first_name (no separate DB column)
+        if (delivery_service or "").strip().lower() == "ukr":
+            first_name = (" ".join([first_name, patronymic])).strip()
 
         if (payment_state or "").strip().lower() == "card" and (status_code or "").strip().lower() in ("not_paid", "pending"):
             status_code = "new"
 
         items_names = request.form.getlist("item_name")
         items_qtys = request.form.getlist("item_qty")
+        items_amounts = request.form.getlist("item_amount")
+        items_amount_auto = request.form.getlist("item_amount_auto")
         items = []
-        for n, q in zip(items_names, items_qtys):
+        for n, q, a, aa in zip(items_names, items_qtys, items_amounts, items_amount_auto):
             name = (n or "").strip()
             if not name:
                 continue
@@ -641,7 +694,19 @@ def order_card(woo_id: int):
                 qty = int(q)
             except Exception:
                 qty = 1
-            items.append({"name": name, "qty": qty})
+
+            amount = (a or "").strip().replace(",", ".")
+            try:
+                amount = float(amount) if amount else None
+            except Exception:
+                amount = None
+
+            try:
+                amount_auto = 1 if int(aa or 0) == 1 else 0
+            except Exception:
+                amount_auto = 0
+
+            items.append({"name": name, "qty": qty, "amount": amount, "amount_auto": amount_auto})
 
         product_summary_parts = []
         for it in items:
@@ -651,20 +716,8 @@ def order_card(woo_id: int):
                 product_summary_parts.append(it["name"])
         product_summary = "; ".join(product_summary_parts)
 
-        amount_auto = (request.form.get("amount_auto") or "") == "1"
-        amount_manual = None
-        amount_raw = (request.form.get("amount") or "").strip().replace(",", ".")
-        if amount_raw:
-            try:
-                amount_manual = float(amount_raw)
-            except Exception:
-                amount_manual = None
-
-        amount_calc = compute_items_total(items)
-        if amount_auto:
-            amount = amount_calc if amount_calc is not None else amount_manual
-        else:
-            amount = amount_manual if amount_manual is not None else amount_calc
+        amount_calc = compute_items_total_with_overrides(items)
+        amount = amount_calc
 
         customer_name = f"{first_name} {last_name}".strip()
         db.update_order_fields(
@@ -684,13 +737,47 @@ def order_card(woo_id: int):
                 "payment_state": payment_state,
                 "product": product_summary,
                 "amount": amount,
-                "amount_auto": 1 if amount_auto else 0,
+                "amount_auto": 1,
             },
         )
         db.replace_order_items(woo_id, items)
+        if close_after_save:
+            return redirect(url_for("index"))
         return redirect(url_for("order_card", woo_id=woo_id, saved=1))
 
     o = dict(row)
+
+    # Split stored first_name into first name + patronymic for Ukrposhta UI
+    fn_raw = (o.get("first_name") or "").strip()
+
+    o["first_name_only"] = ""
+    o["patronymic"] = ""
+
+    # 1) Try to parse from stored first_name (may already contain patronymic)
+    if fn_raw:
+        parts = [p for p in fn_raw.split(" ") if p]
+        if len(parts) >= 2:
+            o["first_name_only"] = parts[0]
+            o["patronymic"] = " ".join(parts[1:])
+        else:
+            o["first_name_only"] = fn_raw
+
+    # 2) If patronymic is still empty, try to derive from customer_name
+    # Many records store full name like: "Фамилия Имя Отчество" in customer_name.
+    if not (o.get("patronymic") or "").strip():
+        full = (o.get("customer_name") or "").strip()
+        ln = (o.get("last_name") or "").strip()
+        if ln and full.lower().startswith((ln + " ").lower()):
+            full = full[len(ln):].strip()
+
+        parts_full = [p for p in full.split(" ") if p]
+        if len(parts_full) >= 2:
+            # If first_name_only is empty, take it from customer_name.
+            if not (o.get("first_name_only") or "").strip():
+                o["first_name_only"] = parts_full[0]
+
+            # Patronymic is everything after first token.
+            o["patronymic"] = " ".join(parts_full[1:])
 
     if o.get("amount_auto") is None:
         o["amount_auto"] = 1
@@ -721,6 +808,8 @@ def order_card(woo_id: int):
     o["status_label"] = badge["label"]
     o["status_class"] = badge["class"]
 
+    prev_woo_id, next_woo_id = db.get_prev_next_woo_ids(woo_id)
+
     saved = request.args.get("saved") == "1"
 
     return render_template(
@@ -729,6 +818,8 @@ def order_card(woo_id: int):
         items=items,
         status_badges=STATUS_BADGES,
         saved=saved,
+        prev_woo_id=prev_woo_id,
+        next_woo_id=next_woo_id,
     )
 
 

@@ -76,9 +76,18 @@ def init_db():
         woo_id INTEGER,
         name TEXT,
         qty INTEGER,
+        amount REAL,
+        amount_auto INTEGER,
         FOREIGN KEY (woo_id) REFERENCES orders (woo_id)
     )
     """)
+
+    cur.execute("PRAGMA table_info(order_items)")
+    cols_items = {r[1] for r in cur.fetchall()}
+    if "amount" not in cols_items:
+        cur.execute("ALTER TABLE order_items ADD COLUMN amount REAL")
+    if "amount_auto" not in cols_items:
+        cur.execute("ALTER TABLE order_items ADD COLUMN amount_auto INTEGER")
 
     conn.commit()
     conn.close()
@@ -192,6 +201,22 @@ def get_order_by_woo_id(woo_id):
     conn.close()
     return row
 
+
+def get_prev_next_woo_ids(woo_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("SELECT MAX(woo_id) AS prev_id FROM orders WHERE woo_id < ?", (woo_id,))
+    prev_row = cur.fetchone()
+    prev_id = prev_row[0] if prev_row else None
+
+    cur.execute("SELECT MIN(woo_id) AS next_id FROM orders WHERE woo_id > ?", (woo_id,))
+    next_row = cur.fetchone()
+    next_id = next_row[0] if next_row else None
+
+    conn.close()
+    return prev_id, next_id
+
 # ----------------------------
 
 def update_status(woo_id, status):
@@ -209,7 +234,7 @@ def get_order_items(woo_id):
     cur = conn.cursor()
 
     cur.execute(
-        "SELECT name, qty FROM order_items WHERE woo_id=? ORDER BY id ASC",
+        "SELECT name, qty, amount, amount_auto FROM order_items WHERE woo_id=? ORDER BY id ASC",
         (woo_id,)
     )
     rows = cur.fetchall()
@@ -233,9 +258,21 @@ def replace_order_items(woo_id: int, items):
         except Exception:
             qty = 1
 
+        amount = it.get("amount")
+        try:
+            amount = float(amount) if amount is not None and str(amount).strip() != "" else None
+        except Exception:
+            amount = None
+
+        amount_auto = it.get("amount_auto")
+        try:
+            amount_auto = 1 if int(amount_auto) == 1 else 0
+        except Exception:
+            amount_auto = 1
+
         cur.execute(
-            "INSERT INTO order_items (woo_id, name, qty) VALUES (?, ?, ?)",
-            (woo_id, name, qty)
+            "INSERT INTO order_items (woo_id, name, qty, amount, amount_auto) VALUES (?, ?, ?, ?, ?)",
+            (woo_id, name, qty, amount, amount_auto)
         )
 
     conn.commit()
