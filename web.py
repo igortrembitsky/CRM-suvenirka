@@ -457,6 +457,20 @@ def index():
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
 
+    # Auto-sync latest 100 on page open when no date range is requested
+    if not date_from and not date_to:
+        if _SYNC_LOCK.acquire(blocking=False):
+            try:
+                global _LAST_SYNC_AT, _LAST_SYNC_ERROR
+                _LAST_SYNC_ERROR = None
+                from sync import sync_orders
+                sync_orders()
+                _LAST_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                _LAST_SYNC_ERROR = str(e)
+            finally:
+                _SYNC_LOCK.release()
+
     try:
         page = int((request.args.get("page") or "1").strip() or "1")
     except Exception:

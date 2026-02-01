@@ -212,23 +212,29 @@ a{
 <div style="max-width: 100%; margin: 10px 0;">
     <div class="topbar-row">
         <div class="topbar-left">
-            <form method="post" action="/sync_statuses" id="syncStatusesForm" style="display:inline-block;">
-                <button type="submit" id="syncStatusesBtn" style="padding:8px 12px; border:0; background:#7b1f2a; color:white; cursor:pointer;">
-                    Обновить в Woo ⤒
+            <form method="post" action="/sync" id="syncOrdersForm" style="display:inline-block; margin:0;">
+                <button type="submit" id="syncOrdersBtn" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;">
+                    Обновить последние 100 ⤓
                 </button>
-                <span class="sync-spinner" id="syncStatusesSpinner"></span>
+                <span class="sync-spinner" id="syncOrdersSpinner"></span>
             </form>
 
             <form method="post" action="/sync_range" class="date-filter" style="margin:0;">
-                <label style="font-size:13px; color:#333;">С</label>
-                <input type="date" name="date_from" value="{{ date_from }}" />
-                <label style="font-size:13px; color:#333;">По</label>
-                <input type="date" name="date_to" value="{{ date_to }}" />
                 <button type="submit"
                         style="padding:8px 12px; border:0; background:#0f5ea8; color:white; cursor:pointer;">
                     Показать
                 </button>
-                <a href="/" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer; display:inline-block; font-size:13px; font-weight:700;">Показать последние 100</a>
+                <label style="font-size:13px; color:#333;">С</label>
+                <input type="date" name="date_from" value="{{ date_from }}" />
+                <label style="font-size:13px; color:#333;">По</label>
+                <input type="date" name="date_to" value="{{ date_to }}" />
+            </form>
+
+            <form method="post" action="/sync_statuses" id="syncStatusesForm" style="display:inline-block;">
+                <button type="submit" id="syncStatusesBtn" style="padding:8px 12px; border:0; background:#7b1f2a; color:white; cursor:pointer;">
+                    Отправить на сайт ⤒
+                </button>
+                <span class="sync-spinner" id="syncStatusesSpinner"></span>
             </form>
         </div>
 
