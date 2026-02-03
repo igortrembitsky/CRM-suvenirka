@@ -42,10 +42,21 @@ def show_error(e):
 app.debug = True
 
 import logging
-logging.basicConfig(
-    filename="/home/h60918c/crm_app/error.log",
-    level=logging.ERROR
-)
+
+_log_file = os.environ.get("CRM_LOG_FILE")
+if not _log_file:
+    if os.name == "nt":
+        _log_file = os.path.join(os.path.dirname(__file__), "error.log")
+    else:
+        _log_file = "/home/h60918c/crm_app/error.log"
+
+try:
+    _log_dir = os.path.dirname(_log_file)
+    if _log_dir and not os.path.exists(_log_dir) and os.name == "nt":
+        os.makedirs(_log_dir, exist_ok=True)
+    logging.basicConfig(filename=_log_file, level=logging.ERROR)
+except Exception:
+    logging.basicConfig(level=logging.ERROR)
 
 # ============================
 # LOGIN SETTINGS
