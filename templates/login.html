@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Вход в CRM</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#f2f4f8;
+    font-family: Arial, sans-serif;
+}
+.login-box{
+    width:340px;
+    background:#ffffff;
+    padding:30px 25px;
+    border-radius:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.15);
+    text-align:center;
+}
+.logo{
+    max-width:160px;
+    margin-bottom:20px;
+}
+input{
+    width:100%;
+    padding:10px;
+    margin-bottom:12px;
+    font-size:14px;
+    border:1px solid #ccc;
+    border-radius:6px;
+}
+button{
+    width:100%;
+    padding:10px;
+    background:#222;
+    color:#fff;
+    border:0;
+    border-radius:6px;
+    font-weight:700;
+    cursor:pointer;
+}
+.error{
+    color:#b00020;
+    font-size:13px;
+    margin-bottom:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="login-box">
+
+<img src="/assets/logo.png" class="logo">
+{% if error %}
+<div class="error">{{ error }}</div>
+{% endif %}
+
+<form method="post">
+
+<input type="text" name="username" placeholder="Логин" required>
+
+<input type="password" name="password" placeholder="Пароль" required>
+
+<button type="submit">Войти</button>
+
+</form>
+
+</div>
+
+</body>
+</html>

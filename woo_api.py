@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 import requests
 from config import WOO_URL, CONSUMER_KEY, CONSUMER_SECRET
 

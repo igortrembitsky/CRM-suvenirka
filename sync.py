@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 from woo_api import get_orders
 import db
 import os
@@ -205,8 +209,7 @@ def sync_orders():
         db.create_or_update_order(order)
         print("DEBUG:", order["woo_id"], status)
 
-    print("✅ Синхронизация завершена")
-
+    print("Синзронизация завершена")
 
 def _iso_after_before_from_dates(date_from: Optional[str], date_to: Optional[str]):
     df = (date_from or "").strip()
@@ -324,8 +327,7 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
 
         db.create_or_update_order(order)
 
-    print("✅ Синхронизация завершена")
-
+    print("Синхронизация завершена")
 # ---------------------------------
 
 if __name__ == "__main__":

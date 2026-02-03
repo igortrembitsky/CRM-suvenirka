@@ -1,4 +1,22 @@
-from flask import Flask, render_template, render_template_string, redirect, url_for, request, jsonify, send_from_directory, abort
+# -*- coding: utf-8 -*-
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
+from flask import (
+    Flask,
+    render_template,
+    render_template_string,
+    redirect,
+    url_for,
+    request,
+    jsonify,
+    send_from_directory,
+    abort,
+    session
+)
+
+from functools import wraps
 import db
 import threading
 import time
@@ -6,11 +24,79 @@ import os
 import requests
 import woo_api
 
+# ============================
+# APP INIT
+# ============================
+
 app = Flask(__name__)
+app.secret_key = "super_secret_key_change_me_123"
+app.config["DEBUG"] = True
+app.config["PROPAGATE_EXCEPTIONS"] = True
+
+import traceback
+
+@app.errorhandler(Exception)
+def show_error(e):
+    return "<pre>" + traceback.format_exc() + "</pre>", 500
+
+app.debug = True
+
+import logging
+logging.basicConfig(
+    filename="/home/h60918c/crm_app/error.log",
+    level=logging.ERROR
+)
+
+# ============================
+# LOGIN SETTINGS
+# ============================
+
+CRM_LOGIN = "admin"
+CRM_PASSWORD = "2587"
+
+# ============================
+# AUTH
+# ============================
+
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return wrapper
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = (request.form.get("password") or "").strip()
+
+        if username == CRM_LOGIN and password == CRM_PASSWORD:
+            session["logged_in"] = True
+            return redirect("/")
+        return render_template("login.html", error="Неверный логин или пароль")
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    session.pop("logged_in", None)
+    return redirect("/login")
+
+# ============================
+# DB INIT
+# ============================
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "crm.db")
 db.set_db_path(DB_FILE)
 db.init_db()
+
+# ============================
+# LOCKS
+# ============================
 
 _SYNC_LOCK = threading.Lock()
 _LAST_SYNC_AT = None
@@ -20,11 +106,18 @@ _STATUS_SYNC_LOCK = threading.Lock()
 _LAST_STATUS_SYNC_AT = None
 _LAST_STATUS_SYNC_ERROR = None
 
+# ============================
+# NOVA POSHTA
+# ============================
+
 NP_API_URL = "https://api.novaposhta.ua/v2.0/json/"
 NP_API_KEY = os.environ.get("NP_API_KEY")
 
 _NP_CACHE = {}
 
+# ============================
+# CRM → WOO STATUS MAP
+# ============================
 
 CRM_TO_WOO_STATUS = {
     "new": "processing",
@@ -37,7 +130,6 @@ CRM_TO_WOO_STATUS = {
     "canceled": "cancelled",
     "bad": "crazy",
 }
-
 
 def map_crm_status_to_woo(raw_status: str):
     code = normalize_status(raw_status)
@@ -173,11 +265,12 @@ def infer_payment_state(order: dict):
 @app.get("/assets/<path:filename>")
 def asset_file(filename: str):
     # serve only explicitly allowed icon files from project root
-    allowed = {"np.png", "up.png", "liq.png", "card.png", "notpay.png", "go.png"}
+    allowed = {"np.png", "up.png", "liq.png", "card.png", "notpay.png", "go.png", "logo.png"}
     if filename not in allowed:
         return abort(404)
     root = os.path.abspath(os.path.dirname(__file__))
-    return send_from_directory(root, filename)
+    images_dir = os.path.join(root, "images")
+    return send_from_directory(images_dir, filename)
 _WOO_CACHE = {}
 
 
@@ -453,6 +546,7 @@ def format_products_for_table(items, product_fallback: str):
 
 
 @app.route("/")
+@login_required
 def index():
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
