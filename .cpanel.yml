@@ -1,0 +1,4 @@
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/h60918c/crm_app
+    - /bin/cp -R * $DEPLOYPATH
