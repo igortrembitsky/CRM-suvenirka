@@ -1,4 +1,5 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/h60918c/crm_app
-    - /bin/cp -R * $DEPLOYPATH
+    - /bin/mkdir -p $DEPLOYPATH
+    - /usr/bin/rsync -a --delete --exclude '.git/' --exclude '.venv/' --exclude '__pycache__/' --exclude '*.log' --exclude 'crm.db' ./ $DEPLOYPATH/

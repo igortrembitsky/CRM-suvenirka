@@ -23,15 +23,28 @@ import time
 import os
 import requests
 import woo_api
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+try:
+    import config as _config
+except Exception:
+    _config = None
 
 # ============================
 # APP INIT
 # ============================
 
 app = Flask(__name__)
-app.secret_key = "super_secret_key_change_me_123"
+app.secret_key = os.environ.get("CRM_SECRET_KEY") or "super_secret_key_change_me_123"
 app.config["DEBUG"] = True
 app.config["PROPAGATE_EXCEPTIONS"] = True
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
+app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
+app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+app.config.setdefault("SESSION_COOKIE_NAME", "crm_session_v2")
+if os.environ.get("CRM_FORCE_HTTPS") == "1":
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 import traceback
 
@@ -122,7 +135,7 @@ _LAST_STATUS_SYNC_ERROR = None
 # ============================
 
 NP_API_URL = "https://api.novaposhta.ua/v2.0/json/"
-NP_API_KEY = os.environ.get("NP_API_KEY")
+NP_API_KEY = os.environ.get("NP_API_KEY") or (getattr(_config, "NP_API_KEY", None) if _config else None)
 
 _NP_CACHE = {}
 
@@ -138,6 +151,7 @@ CRM_TO_WOO_STATUS = {
     "ttn": "ttn",
     "confirmed": "confirmed",
     "shipped": "completed",
+    "no_answer": os.environ.get("WOO_STATUS_NO_ANSWER") or "na",
     "canceled": "cancelled",
     "bad": "crazy",
 }
@@ -428,6 +442,7 @@ STATUS_BADGES = {
     "ttn": {"label": "Створено ТТН", "class": "badge--ttn"},
     "confirmed": {"label": "Підтверджен", "class": "badge--confirmed"},
     "shipped": {"label": "Відправлено", "class": "badge--shipped"},
+    "no_answer": {"label": "Не додзвонилися", "class": "badge--no-answer"},
     "canceled": {"label": "Скасовано", "class": "badge--canceled"},
     "bad": {"label": "Неадекват", "class": "badge--bad"},
 }
@@ -451,6 +466,8 @@ def normalize_status(raw_status: str):
         return "confirmed"
     if sl in ("shipped", "completed"):
         return "shipped"
+    if sl in ("no_answer", "no-answer", "na", "nedozvonilisya", "nedozvonylasia"):
+        return "no_answer"
     if sl in ("canceled", "cancelled"):
         return "canceled"
     if sl in ("bad", "crazy"):
@@ -475,6 +492,8 @@ def normalize_status(raw_status: str):
         return "confirmed"
     if s in ("Відправлено", "Отправлено"):
         return "shipped"
+    if s in ("Не додзвонилися", "Недозвонилися", "Не дозвонились", "Недозвонились"):
+        return "no_answer"
     if s in ("Скасовано", "Отменён"):
         return "canceled"
     if s in ("Невменяшка", "Неадекват"):
@@ -562,8 +581,8 @@ def index():
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
 
-    # Auto-sync latest 100 on page open when no date range is requested
-    if not date_from and not date_to:
+    auto_sync_latest = (os.environ.get("CRM_AUTO_SYNC_LATEST") or "0").strip() == "1"
+    if auto_sync_latest and (not date_from and not date_to):
         if _SYNC_LOCK.acquire(blocking=False):
             try:
                 global _LAST_SYNC_AT, _LAST_SYNC_ERROR
@@ -753,6 +772,28 @@ def sync_now():
         _SYNC_LOCK.release()
 
     return redirect(url_for("index"))
+
+
+@app.get("/woo/statuses")
+@login_required
+def woo_statuses():
+    try:
+        woo_id = (request.args.get("id") or "").strip()
+        if not woo_id:
+            return jsonify({"error": "Missing id"}), 400
+        try:
+            wid = int(woo_id)
+        except Exception:
+            return jsonify({"error": "Invalid id"}), 400
+
+        o = woo_api.get_order(wid)
+        return jsonify({
+            "id": o.get("id"),
+            "status": o.get("status"),
+            "status_label": o.get("status"),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.post("/sync_range")

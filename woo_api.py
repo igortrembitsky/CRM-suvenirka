@@ -27,6 +27,17 @@ def get_orders(per_page=100, page=1, after=None, before=None):
     return r.json()
 
 
+def get_order(order_id: int):
+    url = f"{WOO_URL}/wp-json/wc/v3/orders/{int(order_id)}"
+    r = requests.get(
+        url,
+        auth=(CONSUMER_KEY, CONSUMER_SECRET),
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
+
+
 def delete_order(order_id: int, force: bool = True):
     url = f"{WOO_URL}/wp-json/wc/v3/orders/{int(order_id)}"
     params = {"force": "true" if force else "false"}
@@ -67,7 +78,31 @@ def update_orders_status_batch(updates: list[dict]):
         timeout=60,
     )
     r.raise_for_status()
-    return r.json()
+    data = r.json()
+
+    # Woo batch endpoint may return 200 even if individual updates failed.
+    # Detect per-item errors and surface them.
+    updated = data.get("update") if isinstance(data, dict) else None
+    if isinstance(updated, list):
+        errors = []
+        for it in updated:
+            if not isinstance(it, dict):
+                continue
+            err = it.get("error")
+            if err:
+                errors.append(err)
+        if errors:
+            msgs = []
+            for e in errors[:5]:
+                if isinstance(e, dict):
+                    code = e.get("code")
+                    msg = e.get("message")
+                    msgs.append(f"{code}: {msg}" if code or msg else str(e))
+                else:
+                    msgs.append(str(e))
+            raise RuntimeError("Woo batch update errors: " + "; ".join(msgs))
+
+    return data
 
 
 def get_products(per_page=50, search=None):
