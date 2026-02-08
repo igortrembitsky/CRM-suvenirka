@@ -181,6 +181,7 @@ th{
 .badge--ttn{background:#fb8c00; color:#fff;}
 .badge--confirmed{background:#1976d2; color:#fff;}
 .badge--shipped{background:#7b1fa2; color:#fff;}
+.badge--no-answer{background:#6d4c41; color:#fff;}
 .badge--canceled{background:#616161; color:#fff;}
 .badge--bad{background:#212121; color:#fff;}
 .badge--paid{background:#2e7d32; color:#fff;}
@@ -202,6 +203,37 @@ th{
 .status-select.dropdown-open{
     background-color:#fff !important;
     color:#111 !important;
+}
+
+.delivery-cell{
+    white-space:normal;
+    word-break:break-word;
+    line-height:1.25;
+}
+
+.delivery-td{
+    white-space:normal !important;
+    word-break:break-word;
+}
+
+.delivery-addr{
+    margin-top:2px;
+    font-size:12px;
+    color:#333;
+}
+
+.addr-tooltip{
+    position:fixed;
+    z-index:9999;
+    display:none;
+    max-width:calc(100vw - 24px);
+    padding:8px 10px;
+    background:rgba(0,0,0,0.85);
+    color:#fff;
+    border-radius:8px;
+    font-size:13px;
+    line-height:1.25;
+    word-break:break-word;
 }
 
 a{
@@ -319,21 +351,27 @@ a{
     </select>
 </td>
 
-<td>
-    <span style="display:inline-flex; align-items:center; gap:6px;">
-        <span>
-            {% if (o.get('delivery_service','') or '')|lower == 'ukr' %}
-                Укр
-            {% else %}
-                НП
-            {% endif %}
+<td class="delivery-td">
+    <div class="delivery-cell">
+        <span style="display:inline-flex; align-items:center; gap:6px;">
+            <span>
+                {% if (o.get('delivery_service','') or '')|lower == 'ukr' %}
+                    Укр
+                {% else %}
+                    НП
+                {% endif %}
+            </span>
+            <img
+                src="/assets/{% if (o.get('delivery_service','') or '')|lower == 'ukr' %}up.png{% else %}np.png{% endif %}"
+                alt=""
+                style="width:16px; height:16px; vertical-align:middle;"
+            />
         </span>
-        <img
-            src="/assets/{% if (o.get('delivery_service','') or '')|lower == 'ukr' %}up.png{% else %}np.png{% endif %}"
-            alt=""
-            style="width:16px; height:16px; vertical-align:middle;"
-        />
-    </span>
+
+        <div class="delivery-addr">
+            {{ o.get('city','') }}{% if (o.get('city','') and o.get('address','')) %}, {% endif %}{{ o.get('address','') }}
+        </div>
+    </div>
 </td>
 
 <td>
@@ -636,6 +674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         "ttn": "#fb8c00",
         "confirmed": "#1976d2",
         "shipped": "#7b1fa2",
+        "no_answer": "#6d4c41",
         "canceled": "#616161",
         "bad": "#212121"
     };
@@ -676,8 +715,59 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         sel.dataset.prevValue = sel.value;
     }
+
+    const addrTooltip = document.getElementById('addrTooltip');
+    function isTouchDevice(){
+        try{
+            return window.matchMedia && window.matchMedia('(hover: none)').matches;
+        }catch(e){
+            return false;
+        }
+    }
+
+    function hideAddrTooltip(){
+        if (!addrTooltip) return;
+        addrTooltip.style.display = 'none';
+    }
+
+    function showAddrTooltipNear(el, text){
+        if (!addrTooltip || !el) return;
+        const t = String(text || '').trim();
+        if (!t){
+            hideAddrTooltip();
+            return;
+        }
+        addrTooltip.textContent = t;
+        const r = el.getBoundingClientRect();
+        const left = Math.max(12, Math.min(r.left, window.innerWidth - 12));
+        const top = Math.min(window.innerHeight - 12, r.bottom + 8);
+        addrTooltip.style.left = left + 'px';
+        addrTooltip.style.top = top + 'px';
+        addrTooltip.style.display = 'block';
+    }
+
+    for (const el of Array.from(document.querySelectorAll('.delivery-addr'))){
+        const text = (el.textContent || '').trim();
+        el.title = text;
+        if (!isTouchDevice()) continue;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = addrTooltip && addrTooltip.style.display === 'block' && addrTooltip.textContent === text;
+            if (isOpen){
+                hideAddrTooltip();
+                return;
+            }
+            showAddrTooltipNear(el, text);
+        });
+    }
+
+    document.addEventListener('click', hideAddrTooltip);
+    window.addEventListener('scroll', hideAddrTooltip, {passive:true});
 });
 </script>
+
+<div class="addr-tooltip" id="addrTooltip"></div>
 
 </body>
 </html>

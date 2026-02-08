@@ -115,6 +115,8 @@ label{
 .badge--ttn{background:#fb8c00;}
 .badge--confirmed{background:#1976d2;}
 .badge--shipped{background:#7b1fa2;}
+.badge--no-answer{background:#6d4c41;}
+.badge--no_answer{background:#6d4c41;}
 .badge--canceled{background:#616161;}
 .badge--bad{background:#111;}
 
@@ -176,6 +178,19 @@ button{
     display:none;
 }
 
+.np-tooltip{
+    position:fixed;
+    z-index:9999;
+    display:none;
+    max-width:calc(100vw - 24px);
+    padding:8px 10px;
+    background:rgba(0,0,0,0.85);
+    color:#fff;
+    border-radius:8px;
+    font-size:13px;
+    line-height:1.25;
+    word-break:break-word;
+}
 </style>
 </head>
 
@@ -296,7 +311,7 @@ button{
 
 <div>
 <label>Ім'я</label>
-<input type="text" name="first_name" value="{{ o.get('first_name_only', o.get('first_name','')) }}">
+<input type="text" name="first_name" value="{{ o.get('first_name','') }}">
 </div>
 
 <div id="middleNameBlock">
@@ -321,6 +336,8 @@ button{
 <input type="hidden" name="warehouse_ref" id="warehouseRefInput" value="{{ o.get('warehouse_ref') or '' }}">
 </div>
 </div>
+
+<div class="np-tooltip" id="warehouseTooltip"></div>
 
 <datalist id="npCitiesList"></datalist>
 <datalist id="npWarehousesList"></datalist>
@@ -651,6 +668,7 @@ document.addEventListener("DOMContentLoaded", function(){
         "ttn": "#fb8c00",
         "confirmed": "#1976d2",
         "shipped": "#7b1fa2",
+        "no_answer": "#6d4c41",
         "canceled": "#616161",
         "bad": "#111"
     };
@@ -670,6 +688,7 @@ document.addEventListener("DOMContentLoaded", function(){
         "ttn": "badge--ttn",
         "confirmed": "badge--confirmed",
         "shipped": "badge--shipped",
+        "no_answer": "badge--no_answer",
         "canceled": "badge--canceled",
         "bad": "badge--bad"
     };
@@ -713,6 +732,7 @@ const cityInput = document.getElementById("cityInput");
 const cityRefInput = document.getElementById("cityRefInput");
 const warehouseInput = document.getElementById("warehouseInput");
 const warehouseRefInput = document.getElementById("warehouseRefInput");
+const warehouseTooltip = document.getElementById("warehouseTooltip");
 const npCitiesList = document.getElementById("npCitiesList");
 const npWarehousesList = document.getElementById("npWarehousesList");
 
@@ -805,6 +825,41 @@ function syncWarehouseRefFromInput(){
     }
 }
 
+function updateWarehouseTitle(){
+    if (!warehouseInput) return;
+    const t = (warehouseInput.value || '').trim();
+    warehouseInput.title = t;
+}
+
+function showWarehouseTooltip(){
+    if (!warehouseTooltip || !warehouseInput) return;
+    const t = (warehouseInput.value || '').trim();
+    if (!t){
+        warehouseTooltip.style.display = 'none';
+        return;
+    }
+    warehouseTooltip.textContent = t;
+    const r = warehouseInput.getBoundingClientRect();
+    const left = Math.max(12, Math.min(r.left, window.innerWidth - 12));
+    const top = Math.min(window.innerHeight - 12, r.bottom + 8);
+    warehouseTooltip.style.left = left + 'px';
+    warehouseTooltip.style.top = top + 'px';
+    warehouseTooltip.style.display = 'block';
+}
+
+function hideWarehouseTooltip(){
+    if (!warehouseTooltip) return;
+    warehouseTooltip.style.display = 'none';
+}
+
+function isTouchDevice(){
+    try{
+        return window.matchMedia && window.matchMedia('(hover: none)').matches;
+    }catch(e){
+        return false;
+    }
+}
+
 async function updateCities(){
     if (!isNpDelivery()) return;
     if (!cityInput || !npCitiesList) return;
@@ -867,11 +922,24 @@ if (warehouseInput){
         clearTimeout(_npWarehousesTimer);
         _npWarehousesTimer = setTimeout(updateWarehouses, 250);
         if (warehouseRefInput) warehouseRefInput.value = '';
+        updateWarehouseTitle();
+        if (warehouseTooltip && warehouseTooltip.style.display === 'block') showWarehouseTooltip();
     });
 
     warehouseInput.addEventListener('change', () => {
         if (!isNpDelivery()) return;
         syncWarehouseRefFromInput();
+        updateWarehouseTitle();
+        if (warehouseTooltip && warehouseTooltip.style.display === 'block') showWarehouseTooltip();
+    });
+
+    warehouseInput.addEventListener('focus', () => {
+        updateWarehouseTitle();
+        if (isTouchDevice()) showWarehouseTooltip();
+    });
+
+    warehouseInput.addEventListener('blur', () => {
+        hideWarehouseTooltip();
     });
 }
 
@@ -892,6 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCities();
         updateWarehouses();
     }
+    updateWarehouseTitle();
 });
 </script>
 
