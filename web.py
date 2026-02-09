@@ -23,6 +23,7 @@ import time
 import os
 import requests
 import woo_api
+import re
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 try:
@@ -394,15 +395,16 @@ def _np_guess_warehouse_query(address_text: str):
     if not s:
         return ""
     low = s.lower()
-    # Try to extract warehouse number like "№710" or "710"
-    digits = "".join(ch if ch.isdigit() else " " for ch in low).split()
-    if digits:
-        # Prefer first 3-5 digit number
-        for d in digits:
-            if 2 <= len(d) <= 5:
-                return d
-        return digits[0]
-    # Fallback: use first part of description
+
+    # Prefer explicit department/postomat number to avoid confusing it with house numbers.
+    m = re.search(r"(відділення|отделение|поштомат|postomat)\s*№?\s*(\d{1,5})", low)
+    if m:
+        return m.group(2)
+    m = re.search(r"№\s*(\d{1,5})", low)
+    if m and ("відді" in low or "отдел" in low or "поштомат" in low or "postomat" in low):
+        return m.group(1)
+
+    # Fallback: use first part of description (do not guess by arbitrary digits to avoid house number).
     return s[:30]
 
 
