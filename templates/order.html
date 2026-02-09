@@ -970,14 +970,23 @@ if (deliverySelect){
 
 function npRefsOkForTtn(){
     if (!isNpDelivery()) return true;
-    const cityRef = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
-    const whRef = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
+    const cityRefRaw = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
+    const whRefRaw = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
+    const cityRefLow = cityRefRaw.toLowerCase();
+    const whRefLow = whRefRaw.toLowerCase();
+    const cityRef = (cityRefLow && cityRefLow !== 'none' && cityRefLow !== 'null' && cityRefLow !== 'undefined') ? cityRefRaw : '';
+    const whRef = (whRefLow && whRefLow !== 'none' && whRefLow !== 'null' && whRefLow !== 'undefined') ? whRefRaw : '';
     return !!cityRef && !!whRef;
 }
 
 function npBlockIfMissingRefs(e){
     // Block only for TTN creation attempts
     if (!isNpDelivery()) return;
+
+    // Datalist selection may not trigger 'change' before submit; sync refs from current text.
+    try{ syncCityRefFromInput(); }catch(_e){}
+    try{ syncWarehouseRefFromInput(); }catch(_e){}
+
     const intended = String((e && e.submitter && e.submitter.value) || '').trim().toLowerCase();
     const isTtnQuick = intended === 'ttn';
     const statusSel = document.querySelector('select[name="status"]');
