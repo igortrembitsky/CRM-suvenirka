@@ -559,18 +559,6 @@ def np_create_ttn_for_order(woo_id: int):
     city_ref = _np_safe_strip(order.get("city_ref"))
     wh_ref = _np_safe_strip(order.get("warehouse_ref"))
     if not city_ref or not wh_ref:
-        # Auto-resolve refs for old orders where only text city/address was saved.
-        try:
-            if not city_ref:
-                city_ref = _np_resolve_city_ref_by_name(_np_safe_strip(order.get("city")))
-            if city_ref and not wh_ref:
-                wh_ref = _np_resolve_warehouse_ref(city_ref, _np_safe_strip(order.get("address")))
-            if city_ref or wh_ref:
-                db.update_order_fields(int(woo_id), {"city_ref": city_ref, "warehouse_ref": wh_ref})
-        except Exception:
-            pass
-
-    if not city_ref or not wh_ref:
         raise RuntimeError("NP: missing city_ref/warehouse_ref")
 
     items_rows = db.get_order_items(int(woo_id))

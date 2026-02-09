@@ -968,6 +968,33 @@ if (deliverySelect){
     });
 }
 
+function npRefsOkForTtn(){
+    if (!isNpDelivery()) return true;
+    const cityRef = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
+    const whRef = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
+    return !!cityRef && !!whRef;
+}
+
+function npBlockIfMissingRefs(e){
+    // Block only for TTN creation attempts
+    if (!isNpDelivery()) return;
+    const intended = String((e && e.submitter && e.submitter.value) || '').trim().toLowerCase();
+    const isTtnQuick = intended === 'ttn';
+    const statusSel = document.querySelector('select[name="status"]');
+    const statusVal = String((statusSel && statusSel.value) || '').trim().toLowerCase();
+    const isTtnStatus = statusVal === 'ttn';
+
+    if ((isTtnQuick || isTtnStatus) && !npRefsOkForTtn()){
+        e.preventDefault();
+        alert('Для створення ТТН Нова Пошта потрібно вибрати Місто та Відділення зі списку підказок (щоб заповнились refs).');
+    }
+}
+
+const formEl = document.querySelector('form');
+if (formEl){
+    formEl.addEventListener('submit', npBlockIfMissingRefs);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     if (isNpDelivery()){
         updateCities();
@@ -975,6 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateWarehouseTitle();
 });
+
 </script>
 
 </body>
