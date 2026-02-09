@@ -816,10 +816,14 @@ function fillDatalist(dl, items, getValue){
     }
 }
 
+function _npNormText(s){
+    return String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 function syncCityRefFromInput(){
     if (!cityInput || !cityRefInput) return;
-    const v = (cityInput.value || '').trim();
-    const match = _npCitySuggestions.find(c => (c.name || '').trim() === v);
+    const v = _npNormText(cityInput.value || '');
+    const match = _npCitySuggestions.find(c => _npNormText((c && c.name) || '') === v);
     if (match && match.ref){
         cityRefInput.value = match.ref;
     } else {
@@ -829,8 +833,8 @@ function syncCityRefFromInput(){
 
 function syncWarehouseRefFromInput(){
     if (!warehouseInput || !warehouseRefInput) return;
-    const v = (warehouseInput.value || '').trim();
-    const match = _npWarehouseSuggestions.find(w => (w.name || '').trim() === v);
+    const v = _npNormText(warehouseInput.value || '');
+    const match = _npWarehouseSuggestions.find(w => _npNormText((w && w.name) || '') === v);
     if (match && match.ref){
         warehouseRefInput.value = match.ref;
     } else {
@@ -993,10 +997,60 @@ function npBlockIfMissingRefs(e){
     const statusVal = String((statusSel && statusSel.value) || '').trim().toLowerCase();
     const isTtnStatus = statusVal === 'ttn';
 
-    if ((isTtnQuick || isTtnStatus) && !npRefsOkForTtn()){
+    if (!(isTtnQuick || isTtnStatus)) return;
+    if (npRefsOkForTtn()) return;
+
+    // Attempt to resolve refs from current input values on submit (exact match), then resubmit.
+    // This avoids false-positives when the user selected from datalist but refs were not synced.
+    if (window._npResolvingRefsOnSubmit){
         e.preventDefault();
         alert('Для створення ТТН Нова Пошта потрібно вибрати Місто та Відділення зі списку підказок (щоб заповнились refs).');
+        return;
     }
+
+    e.preventDefault();
+    window._npResolvingRefsOnSubmit = true;
+
+    const submitter = (e && e.submitter) ? e.submitter : null;
+    const cityText = (cityInput ? String(cityInput.value || '').trim() : '');
+    const whText = (warehouseInput ? String(warehouseInput.value || '').trim() : '');
+
+    Promise.resolve()
+        .then(async () => {
+            if (!cityText || !whText) return false;
+
+            const cities = await fetchNpCities(cityText);
+            const cityMatch = (cities || []).find(c => _npNormText((c && c.name) || '') === _npNormText(cityText));
+            const cityRef = cityMatch && cityMatch.ref ? String(cityMatch.ref) : '';
+            if (!cityRef) return false;
+            if (cityRefInput) cityRefInput.value = cityRef;
+
+            const whs = await fetchNpWarehouses(cityRef, whText);
+            const whMatch = (whs || []).find(w => _npNormText((w && w.name) || '') === _npNormText(whText));
+            const whRef = whMatch && whMatch.ref ? String(whMatch.ref) : '';
+            if (!whRef) return false;
+            if (warehouseRefInput) warehouseRefInput.value = whRef;
+
+            return npRefsOkForTtn();
+        })
+        .then((ok) => {
+            window._npResolvingRefsOnSubmit = false;
+            if (ok){
+                try{
+                    if (formEl && formEl.requestSubmit && submitter){
+                        formEl.requestSubmit(submitter);
+                        return;
+                    }
+                }catch(_e){}
+                if (formEl) formEl.submit();
+            } else {
+                alert('Для створення ТТН Нова Пошта потрібно вибрати Місто та Відділення зі списку підказок (щоб заповнились refs).');
+            }
+        })
+        .catch(() => {
+            window._npResolvingRefsOnSubmit = false;
+            alert('Для створення ТТН Нова Пошта потрібно вибрати Місто та Відділення зі списку підказок (щоб заповнились refs).');
+        });
 }
 
 const formEl = document.querySelector('form');
