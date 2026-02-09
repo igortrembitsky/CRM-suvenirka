@@ -364,6 +364,20 @@ button{
 </div>
 
 <div>
+<label>ТТН</label>
+{% if o.get('ttn_number','') %}
+<input type="text" value="{{ o.get('ttn_number','') }}" readonly style="font-weight:700; max-width:320px;" />
+{% else %}
+<input type="text" value="" readonly style="max-width:320px;" />
+{% endif %}
+{% if o.get('ttn_error','') %}
+<div style="margin-top:6px; color:#b00020; font-size:13px; white-space:pre-wrap; word-break:break-word;">{{ o.get('ttn_error','') }}</div>
+{% endif %}
+</div>
+
+</div>
+
+<div class="row">
 <label>Статус</label>
 <select name="status">
 {% for code, meta in status_badges.items() %}
@@ -372,7 +386,6 @@ button{
 </option>
 {% endfor %}
 </select>
-</div>
 </div>
 
 <!-- ================= КОММЕНТАРИЙ ================= -->

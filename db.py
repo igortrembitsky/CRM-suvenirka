@@ -75,6 +75,13 @@ def init_db():
     if "payment_state" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN payment_state TEXT")
 
+    if "ttn_number" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN ttn_number TEXT")
+    if "ttn_error" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN ttn_error TEXT")
+    if "ttn_created_at" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN ttn_created_at TEXT")
+
     cur.execute("""
     CREATE TABLE IF NOT EXISTS order_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -211,7 +218,8 @@ def list_orders():
 
     cur.execute("""
         SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product,
-               delivery_service, shipping_method, city_ref, warehouse_ref, comment
+               delivery_service, shipping_method, city_ref, warehouse_ref, comment,
+               ttn_number, ttn_error, ttn_created_at
         FROM orders
         ORDER BY woo_id DESC
     """)
@@ -266,7 +274,8 @@ def list_orders_filtered(
     where_sql, params = _build_created_at_range_where(from_date, to_date)
     sql = (
         "SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product, "
-        "       delivery_service, shipping_method, city_ref, warehouse_ref, comment "
+        "       delivery_service, shipping_method, city_ref, warehouse_ref, comment, "
+        "       ttn_number, ttn_error, ttn_created_at "
         "FROM orders" + where_sql + " ORDER BY woo_id DESC LIMIT ? OFFSET ?"
     )
     cur.execute(sql, (*params, int(limit), int(offset)))
@@ -430,6 +439,9 @@ def update_order_fields(woo_id, fields: dict):
         "amount",
         "amount_auto",
         "product",
+        "ttn_number",
+        "ttn_error",
+        "ttn_created_at",
     }
 
     updates = []

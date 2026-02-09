@@ -137,6 +137,13 @@ _LAST_STATUS_SYNC_ERROR = None
 NP_API_URL = "https://api.novaposhta.ua/v2.0/json/"
 NP_API_KEY = os.environ.get("NP_API_KEY") or (getattr(_config, "NP_API_KEY", None) if _config else None)
 
+NP_SENDER_REF = os.environ.get("NP_SENDER_REF") or (getattr(_config, "NP_SENDER_REF", None) if _config else None)
+NP_SENDER_CONTACT_REF = os.environ.get("NP_SENDER_CONTACT_REF") or (getattr(_config, "NP_SENDER_CONTACT_REF", None) if _config else None)
+NP_SENDER_ADDRESS_REF = os.environ.get("NP_SENDER_ADDRESS_REF") or (getattr(_config, "NP_SENDER_ADDRESS_REF", None) if _config else None)
+NP_SENDER_CITY_REF = os.environ.get("NP_SENDER_CITY_REF") or (getattr(_config, "NP_SENDER_CITY_REF", None) if _config else None)
+NP_SENDER_PHONE = os.environ.get("NP_SENDER_PHONE") or (getattr(_config, "NP_SENDER_PHONE", None) if _config else None)
+NP_CARGO_DESCRIPTION = os.environ.get("NP_CARGO_DESCRIPTION") or (getattr(_config, "NP_CARGO_DESCRIPTION", None) if _config else None) or "Сувенірна продукція"
+
 _NP_CACHE = {}
 
 # ============================
@@ -304,6 +311,410 @@ def _np_post(payload: dict):
     r.raise_for_status()
     data = r.json()
     return data
+
+
+def _np_ensure_sender_config():
+    missing = []
+    if not NP_API_KEY:
+        missing.append("NP_API_KEY")
+    if not NP_SENDER_REF:
+        missing.append("NP_SENDER_REF")
+    if not NP_SENDER_CONTACT_REF:
+        missing.append("NP_SENDER_CONTACT_REF")
+    if not NP_SENDER_ADDRESS_REF:
+        missing.append("NP_SENDER_ADDRESS_REF")
+    if not NP_SENDER_CITY_REF:
+        missing.append("NP_SENDER_CITY_REF")
+    if not NP_SENDER_PHONE:
+        missing.append("NP_SENDER_PHONE")
+    if missing:
+        raise RuntimeError("NP sender config missing: " + ", ".join(missing))
+
+
+def _np_detect_service_type(order: dict):
+    # Best-effort: if user selected a postomat, address text usually contains it.
+    addr = (order.get("address") or "").lower()
+    if "поштомат" in addr or "postomat" in addr:
+        return "WarehousePostomat"
+    return "WarehouseWarehouse"
+
+
+def _np_build_internal_number(items: list[dict]):
+    # "Внутрішній номер відправлення" – first words of item names.
+    parts = []
+    for it in (items or [])[:3]:
+        name = (it.get("name") or "").strip()
+        if not name:
+            continue
+        words = [w for w in name.replace(";", " ").replace(",", " ").split() if w]
+        if words:
+            parts.append(words[0])
+    return ", ".join(parts)[:50]
+
+
+def _np_city_query_from_text(city_name: str):
+    q = (city_name or "").strip()
+    if not q:
+        return ""
+    q = q.split(",")[0].strip()
+    low = q.lower()
+    for pref in ("м.", "м ", "смт", "с.", "с ", "г.", "г "):
+        if low.startswith(pref):
+            q = q[len(pref):].strip()
+            break
+    return q
+
+
+def _np_resolve_city_ref_by_name(city_name: str):
+    q = _np_city_query_from_text(city_name)
+    if not q:
+        return ""
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": "AddressGeneral",
+        "calledMethod": "getCities",
+        "methodProperties": {"FindByString": q, "Limit": 20},
+    }
+    data = _np_post(payload)
+    if not data.get("success"):
+        return ""
+    cities = data.get("data") or []
+    ql = q.lower()
+    for c in cities:
+        name = (c.get("Description") or c.get("DescriptionRu") or "").strip()
+        if name.lower() == ql:
+            return (c.get("Ref") or "").strip()
+    if cities and isinstance(cities[0], dict):
+        return (cities[0].get("Ref") or "").strip()
+    return ""
+
+
+def _np_guess_warehouse_query(address_text: str):
+    s = (address_text or "").strip()
+    if not s:
+        return ""
+    low = s.lower()
+    # Try to extract warehouse number like "№710" or "710"
+    digits = "".join(ch if ch.isdigit() else " " for ch in low).split()
+    if digits:
+        # Prefer first 3-5 digit number
+        for d in digits:
+            if 2 <= len(d) <= 5:
+                return d
+        return digits[0]
+    # Fallback: use first part of description
+    return s[:30]
+
+
+def _np_resolve_warehouse_ref(city_ref: str, address_text: str):
+    cr = (city_ref or "").strip()
+    if not cr:
+        return ""
+    q = _np_guess_warehouse_query(address_text)
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": "AddressGeneral",
+        "calledMethod": "getWarehouses",
+        "methodProperties": {"CityRef": cr, "FindByString": q or "", "Limit": 50},
+    }
+    data = _np_post(payload)
+    if not data.get("success"):
+        return ""
+    whs = data.get("data") or []
+    ql = (q or "").strip().lower()
+    if ql:
+        for w in whs:
+            num = (w.get("Number") or "").strip().lower()
+            if num == ql:
+                return (w.get("Ref") or "").strip()
+    if whs and isinstance(whs[0], dict):
+        return (whs[0].get("Ref") or "").strip()
+    return ""
+
+
+def _np_normalize_phone(raw: str):
+    # raw may be non-string (e.g. dict from malformed data). Normalize defensively.
+    if raw is None:
+        s = ""
+    elif isinstance(raw, (dict, list, tuple, set)):
+        s = ""
+    else:
+        s = str(raw)
+    s = s.strip()
+    digits = "".join(ch for ch in s if ch.isdigit())
+    if not digits:
+        return ""
+    # Common UA formats
+    if len(digits) == 10 and digits.startswith("0"):
+        digits = "38" + digits
+    if len(digits) == 12 and digits.startswith("380"):
+        return digits
+    # If user entered already with 38 + 10 digits
+    if len(digits) == 12 and digits.startswith("38"):
+        return digits
+    # Best-effort: take last 12
+    if len(digits) > 12:
+        tail = digits[-12:]
+        if tail.startswith("380"):
+            return tail
+    return digits
+
+
+def _np_safe_strip(v):
+    if v is None:
+        return ""
+    if isinstance(v, (dict, list, tuple, set)):
+        return ""
+    try:
+        return str(v).strip()
+    except Exception:
+        return ""
+
+
+def _np_get_or_create_recipient(order: dict):
+    """Return (recipient_ref, contact_ref, phone_norm, name_string)."""
+    first_name = _np_safe_strip(order.get("first_name"))
+    last_name = _np_safe_strip(order.get("last_name"))
+    phone_norm = _np_normalize_phone(order.get("phone"))
+    if not first_name and _np_safe_strip(order.get("customer_name")):
+        # Try to parse from customer_name
+        parts = [p for p in _np_safe_strip(order.get("customer_name")).split() if p]
+        if parts:
+            first_name = parts[0]
+        if len(parts) >= 2 and not last_name:
+            last_name = parts[1]
+
+    if not first_name:
+        first_name = "-"
+    if not last_name:
+        last_name = "-"
+    if not phone_norm:
+        raise RuntimeError("NP: recipient phone is empty")
+
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": "Counterparty",
+        "calledMethod": "save",
+        "methodProperties": {
+            "CounterpartyType": "PrivatePerson",
+            "CounterpartyProperty": "Recipient",
+            "FirstName": first_name,
+            "LastName": last_name,
+            "Phone": phone_norm,
+        },
+    }
+    data = _np_post(payload)
+    if not data.get("success"):
+        raise RuntimeError("NP recipient error: " + str(data.get("errors") or data))
+
+    dd = (data.get("data") or [])
+    if not dd or not isinstance(dd, list) or not isinstance(dd[0], dict):
+        raise RuntimeError("NP recipient unexpected response: " + str(data))
+
+    recipient_ref = _np_safe_strip(dd[0].get("Ref"))
+    cp = dd[0].get("ContactPerson")
+    contact_ref = ""
+    if isinstance(cp, dict):
+        # NP may return either:
+        # 1) {"Ref": "..."}
+        # 2) {"success": True, "data": [{"Ref": "..."}], ...}
+        contact_ref = _np_safe_strip(cp.get("Ref"))
+        if not contact_ref:
+            cp_data = cp.get("data")
+            if isinstance(cp_data, list) and cp_data and isinstance(cp_data[0], dict):
+                contact_ref = _np_safe_strip(cp_data[0].get("Ref"))
+    else:
+        contact_ref = _np_safe_strip(cp)
+
+    name_string = _np_safe_strip(dd[0].get("Description")) or (last_name + " " + first_name).strip()
+    if not recipient_ref or not contact_ref:
+        raise RuntimeError("NP recipient refs missing: " + str(dd[0]))
+
+    return recipient_ref, contact_ref, phone_norm, name_string
+
+
+def np_create_ttn_for_order(woo_id: int):
+    """Create Nova Poshta waybill (TTN) for given CRM order.
+
+    Persists fields: ttn_number, ttn_error, ttn_created_at.
+    """
+    row = db.get_order_by_woo_id(int(woo_id))
+    if not row:
+        raise RuntimeError("Order not found")
+    order = dict(row)
+
+    if _np_safe_strip(order.get("ttn_number")):
+        return {"ttn_number": order.get("ttn_number"), "already": True}
+
+    if normalize_status(order.get("status")) != "ttn":
+        return {"skipped": True, "reason": "status_not_ttn"}
+
+    if _np_safe_strip(order.get("delivery_service")).lower() != "np":
+        return {"skipped": True, "reason": "not_np_delivery"}
+
+    _np_ensure_sender_config()
+
+    city_ref = _np_safe_strip(order.get("city_ref"))
+    wh_ref = _np_safe_strip(order.get("warehouse_ref"))
+    if not city_ref or not wh_ref:
+        # Auto-resolve refs for old orders where only text city/address was saved.
+        try:
+            if not city_ref:
+                city_ref = _np_resolve_city_ref_by_name(_np_safe_strip(order.get("city")))
+            if city_ref and not wh_ref:
+                wh_ref = _np_resolve_warehouse_ref(city_ref, _np_safe_strip(order.get("address")))
+            if city_ref or wh_ref:
+                db.update_order_fields(int(woo_id), {"city_ref": city_ref, "warehouse_ref": wh_ref})
+        except Exception:
+            pass
+
+    if not city_ref or not wh_ref:
+        raise RuntimeError("NP: missing city_ref/warehouse_ref")
+
+    items_rows = db.get_order_items(int(woo_id))
+    items = [dict(r) for r in items_rows]
+    internal_num = _np_build_internal_number(items)
+
+    try:
+        amount = float(order.get("amount") or 0)
+    except Exception:
+        amount = 0.0
+
+    service_type = _np_detect_service_type(order)
+    ps = _np_safe_strip(order.get("payment_state")).lower()
+    is_cod = ps == "cod"
+
+    # COD is often unavailable for Postomat deliveries.
+    # Behavior: auto-disable COD for postomat to allow TTN creation.
+    if is_cod and service_type == "WarehousePostomat":
+        is_cod = False
+
+    recipient_ref, recipient_contact_ref, recipient_phone_norm, recipient_name = _np_get_or_create_recipient(order)
+    sender_phone_norm = _np_normalize_phone(NP_SENDER_PHONE)
+    if not sender_phone_norm:
+        raise RuntimeError("NP: sender phone invalid")
+
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": "InternetDocument",
+        "calledMethod": "save",
+        "methodProperties": {
+            "PayerType": "Sender",
+            "PaymentMethod": "Cash",
+            "DateTime": time.strftime("%d.%m.%Y"),
+            "CargoType": "Cargo",
+            "Weight": "1",
+            "ServiceType": service_type,
+            "SeatsAmount": "1",
+            "Description": NP_CARGO_DESCRIPTION,
+            "Cost": str(int(round(amount))) if amount else "1",
+            "CitySender": NP_SENDER_CITY_REF,
+            "Sender": NP_SENDER_REF,
+            "SenderAddress": NP_SENDER_ADDRESS_REF,
+            "ContactSender": NP_SENDER_CONTACT_REF,
+            "SendersPhone": sender_phone_norm,
+            "CityRecipient": city_ref,
+            "RecipientAddress": wh_ref,
+            "RecipientType": "PrivatePerson",
+            "Recipient": recipient_ref,
+            "ContactRecipient": recipient_contact_ref,
+            "RecipientsPhone": recipient_phone_norm,
+            "RecipientName": recipient_name,
+            "InfoRegClientBarcodes": internal_num,
+            "OptionsSeat": [{"volumetricWidth": 12, "volumetricLength": 20, "volumetricHeight": 5, "weight": 1}],
+        },
+    }
+
+    # Remove optional None keys (NP is picky)
+    mp = payload["methodProperties"]
+    for k in list(mp.keys()):
+        if mp[k] is None:
+            mp.pop(k, None)
+
+    # "Контроль оплати" in NP is enabled via AfterpaymentOnGoodsCost (per NP API docs).
+    # NP may also require MoneyTransfer flag to be enabled for financial services.
+    # For CRM payment_state=cod we pass the amount as an integer string.
+    if is_cod and amount:
+        try:
+            mp["AfterpaymentOnGoodsCost"] = str(int(round(float(amount))))
+        except Exception:
+            mp["AfterpaymentOnGoodsCost"] = str(int(round(amount)))
+        mp["MoneyTransfer"] = 1
+
+    if is_cod and amount:
+        mp["BackwardDeliveryData"] = [
+            {
+                "PayerType": "Recipient",
+                "CargoType": "Money",
+                "RedeliveryString": str(int(round(amount))),
+            }
+        ]
+
+    data = _np_post(payload)
+    if not data.get("success"):
+        errs = data.get("errors")
+        # Fallback: if COD is unavailable for this delivery, retry once without BackwardDeliveryData.
+        if is_cod and errs:
+            handled = False
+            try:
+                err_text = " ".join([str(x) for x in (errs if isinstance(errs, list) else [errs])])
+            except Exception:
+                err_text = str(errs)
+            # If NP says we didn't enable financial service, retry once ensuring flags are set.
+            if "only moneytransfer or afterpayment enable" in (err_text or "").lower():
+                # Retry #1: enforce canonical formats.
+                try:
+                    mp["AfterpaymentOnGoodsCost"] = str(int(round(float(amount))))
+                except Exception:
+                    mp["AfterpaymentOnGoodsCost"] = str(int(round(amount)))
+                mp["MoneyTransfer"] = "1"
+                data = _np_post(payload)
+                if not data.get("success"):
+                    # Retry #2: enable payment control only (per NP example) without BackwardDeliveryData.
+                    mp.pop("BackwardDeliveryData", None)
+                    mp.pop("MoneyTransfer", None)
+                    data = _np_post(payload)
+                    if not data.get("success"):
+                        raise RuntimeError(
+                            "NP error: "
+                            + str(data.get("errors") or data)
+                            + " | debug: AfterpaymentOnGoodsCost="
+                            + str(mp.get("AfterpaymentOnGoodsCost"))
+                            + ", has_BackwardDeliveryData="
+                            + str("BackwardDeliveryData" in mp)
+                        )
+                handled = True
+
+            if (not handled) and ("післяплата недоступна" in (err_text or "").lower()):
+                mp.pop("BackwardDeliveryData", None)
+                mp.pop("AfterpaymentOnGoodsCost", None)
+                mp.pop("MoneyTransfer", None)
+                data = _np_post(payload)
+                if not data.get("success"):
+                    raise RuntimeError("NP error: " + str(data.get("errors") or data))
+                handled = True
+
+            if not handled:
+                raise RuntimeError("NP error: " + str(errs or data))
+        else:
+            raise RuntimeError("NP error: " + str(errs or data))
+
+    dd = (data.get("data") or [])
+    if not dd or not isinstance(dd, list) or not isinstance(dd[0], dict):
+        raise RuntimeError("NP unexpected response: " + str(data))
+    ttn = _np_safe_strip(dd[0].get("IntDocNumber"))
+    if not ttn:
+        raise RuntimeError("NP did not return IntDocNumber: " + str(dd[0]))
+
+    db.update_order_fields(
+        int(woo_id),
+        {
+            "ttn_number": ttn,
+            "ttn_error": "",
+            "ttn_created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    )
+    return {"ttn_number": ttn, "already": False}
 
 
 def _cache_get(key):
@@ -701,6 +1112,21 @@ def update_order_status_inline(woo_id: int):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+    ttn_number = None
+    ttn_error = ""
+    if status_code == "ttn":
+        try:
+            # clear previous error before attempt
+            db.update_order_fields(int(woo_id), {"ttn_error": ""})
+            res = np_create_ttn_for_order(int(woo_id))
+            ttn_number = res.get("ttn_number")
+        except Exception as e:
+            ttn_error = str(e)
+            try:
+                db.update_order_fields(int(woo_id), {"ttn_error": ttn_error})
+            except Exception:
+                pass
+
     badge = STATUS_BADGES.get(status_code, STATUS_BADGES["new"])
     return jsonify(
         {
@@ -708,6 +1134,8 @@ def update_order_status_inline(woo_id: int):
             "status_code": status_code,
             "status_label": badge.get("label"),
             "status_class": badge.get("class"),
+            "ttn_number": ttn_number,
+            "ttn_error": ttn_error,
         }
     )
 
@@ -739,6 +1167,20 @@ def update_orders_status_bulk():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+    ttn_errors = {}
+    if status_code == "ttn":
+        for wid in ids:
+            try:
+                db.update_order_fields(int(wid), {"ttn_error": ""})
+                np_create_ttn_for_order(int(wid))
+            except Exception as e:
+                msg = str(e)
+                ttn_errors[str(wid)] = msg
+                try:
+                    db.update_order_fields(int(wid), {"ttn_error": msg})
+                except Exception:
+                    pass
+
     badge = STATUS_BADGES.get(status_code, STATUS_BADGES["new"])
     updated = []
     for wid in ids:
@@ -751,7 +1193,7 @@ def update_orders_status_bulk():
             }
         )
 
-    return jsonify({"updated": updated})
+    return jsonify({"updated": updated, "ttn_errors": ttn_errors})
 
 
 @app.post("/sync")
@@ -943,6 +1385,164 @@ def np_cities():
     return jsonify(res)
 
 
+@app.get("/np/debug/city_warehouse_refs")
+@login_required
+def np_debug_city_warehouse_refs():
+    """Helper endpoint to find CityRef + WarehouseRef by human input.
+
+    Example:
+      /np/debug/city_warehouse_refs?city=Київ&warehouse=710
+    """
+    if not NP_API_KEY:
+        return jsonify({"error": "NP_API_KEY is not set"}), 500
+
+    city = (request.args.get("city") or "").strip()
+    wh = (request.args.get("warehouse") or "").strip()
+    if not city:
+        return jsonify({"error": "Missing city"}), 400
+
+    payload_city = {
+        "apiKey": NP_API_KEY,
+        "modelName": "AddressGeneral",
+        "calledMethod": "getCities",
+        "methodProperties": {"FindByString": city, "Limit": 20},
+    }
+    data_city = _np_post(payload_city)
+    if not data_city.get("success"):
+        return jsonify({"error": data_city.get("errors") or "NP error", "raw": data_city}), 502
+
+    cities = []
+    for c in data_city.get("data", []) or []:
+        cities.append({
+            "ref": c.get("Ref"),
+            "name": c.get("Description") or c.get("DescriptionRu") or "",
+            "area": c.get("AreaDescription") or "",
+            "region": c.get("RegionsDescription") or "",
+        })
+
+    # Pick best city match
+    city_ref = ""
+    city_low = city.lower()
+    for c in cities:
+        if (c.get("name") or "").strip().lower() == city_low:
+            city_ref = c.get("ref") or ""
+            break
+    if not city_ref and cities:
+        city_ref = cities[0].get("ref") or ""
+
+    res = {
+        "city_input": city,
+        "city_ref": city_ref,
+        "cities": cities,
+        "warehouse_input": wh,
+        "warehouse_ref": "",
+        "warehouses": [],
+    }
+
+    if city_ref:
+        payload_wh = {
+            "apiKey": NP_API_KEY,
+            "modelName": "AddressGeneral",
+            "calledMethod": "getWarehouses",
+            "methodProperties": {
+                "CityRef": city_ref,
+                "FindByString": wh or "",
+                "Limit": 100,
+            },
+        }
+        data_wh = _np_post(payload_wh)
+        if data_wh.get("success"):
+            warehouses = []
+            for w in data_wh.get("data", []) or []:
+                warehouses.append({
+                    "ref": w.get("Ref"),
+                    "name": w.get("Description") or w.get("DescriptionRu") or "",
+                    "number": w.get("Number") or "",
+                    "type": w.get("CategoryOfWarehouse") or w.get("TypeOfWarehouse") or "",
+                })
+            res["warehouses"] = warehouses
+            if wh:
+                wh_low = wh.strip().lower()
+                for w in warehouses:
+                    if (w.get("number") or "").strip().lower() == wh_low:
+                        res["warehouse_ref"] = w.get("ref") or ""
+                        break
+            if not res["warehouse_ref"] and warehouses:
+                res["warehouse_ref"] = warehouses[0].get("ref") or ""
+        else:
+            res["warehouses_error"] = data_wh.get("errors") or "NP error"
+            res["warehouses_raw"] = data_wh
+
+    return jsonify(res)
+
+
+@app.get("/np/debug/sender_refs")
+@login_required
+def np_debug_sender_refs():
+    """Helper endpoint to find Sender/ContactSender refs.
+
+    Example:
+      /np/debug/sender_refs?q=Трембицька
+    """
+    if not NP_API_KEY:
+        return jsonify({"error": "NP_API_KEY is not set"}), 500
+
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"error": "Missing q"}), 400
+
+    payload_cp = {
+        "apiKey": NP_API_KEY,
+        "modelName": "Counterparty",
+        "calledMethod": "getCounterparties",
+        "methodProperties": {
+            "CounterpartyProperty": "Sender",
+            "Page": "1",
+            "FindByString": q,
+        },
+    }
+    data_cp = _np_post(payload_cp)
+    if not data_cp.get("success"):
+        return jsonify({"error": data_cp.get("errors") or "NP error", "raw": data_cp}), 502
+
+    counterparties = []
+    for c in data_cp.get("data", []) or []:
+        counterparties.append({
+            "ref": c.get("Ref"),
+            "description": c.get("Description") or "",
+            "first_name": c.get("FirstName") or "",
+            "last_name": c.get("LastName") or "",
+            "counterparty_type": c.get("CounterpartyType") or "",
+        })
+
+    # Also try to fetch contacts for the first match (for convenience)
+    contacts = []
+    cp_ref = (counterparties[0].get("ref") if counterparties else "")
+    if cp_ref:
+        payload_contacts = {
+            "apiKey": NP_API_KEY,
+            "modelName": "Counterparty",
+            "calledMethod": "getCounterpartyContactPersons",
+            "methodProperties": {"Ref": cp_ref, "Page": "1"},
+        }
+        data_contacts = _np_post(payload_contacts)
+        if data_contacts.get("success"):
+            for p in data_contacts.get("data", []) or []:
+                contacts.append({
+                    "ref": p.get("Ref"),
+                    "description": p.get("Description") or "",
+                    "phones": p.get("Phones") or "",
+                })
+        else:
+            contacts = [{"error": data_contacts.get("errors") or "NP error", "raw": data_contacts}]
+
+    return jsonify({
+        "query": q,
+        "counterparties": counterparties,
+        "first_counterparty_contacts": contacts,
+    })
+
+
 @app.get("/woo/products")
 def woo_products():
     q = (request.args.get("q") or "").strip()
@@ -1034,6 +1634,7 @@ def order_card(woo_id: int):
         quick_status = (request.form.get("quick_status") or "").strip()
         if quick_status:
             status_code = quick_status
+        status_code = normalize_status(status_code)
 
         delivery_service = (request.form.get("delivery_service") or "").strip()
         payment_state = (request.form.get("payment_state") or "").strip()
@@ -1105,6 +1706,16 @@ def order_card(woo_id: int):
             },
         )
         db.replace_order_items(woo_id, items)
+
+        if status_code == "ttn":
+            try:
+                db.update_order_fields(int(woo_id), {"ttn_error": ""})
+                np_create_ttn_for_order(int(woo_id))
+            except Exception as e:
+                try:
+                    db.update_order_fields(int(woo_id), {"ttn_error": str(e)})
+                except Exception:
+                    pass
         if close_after_save:
             return redirect(url_for("index"))
         return redirect(url_for("order_card", woo_id=woo_id, saved=1))
