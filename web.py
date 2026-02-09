@@ -599,7 +599,7 @@ def np_create_ttn_for_order(woo_id: int):
         "modelName": "InternetDocument",
         "calledMethod": "save",
         "methodProperties": {
-            "PayerType": "Sender",
+            "PayerType": "Recipient",
             "PaymentMethod": "Cash",
             "DateTime": time.strftime("%d.%m.%Y"),
             "CargoType": "Cargo",
