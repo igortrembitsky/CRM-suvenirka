@@ -1004,7 +1004,7 @@ function npBlockIfMissingRefs(e){
     // This avoids false-positives when the user selected from datalist but refs were not synced.
     if (window._npResolvingRefsOnSubmit){
         e.preventDefault();
-        alert('Для створення ТТН Нова Пошта потрібно вибрати Місто та Відділення зі списку підказок (щоб заповнились refs).');
+        alert('Для створення ТТН Нова Пошта потрібно вибрати місто та відділення зі списку підказок (щоб заповнились refs).');
         return;
     }
 
@@ -1017,19 +1017,38 @@ function npBlockIfMissingRefs(e){
 
     Promise.resolve()
         .then(async () => {
-            if (!cityText || !whText) return false;
+            // Use existing refs if already filled; resolve only missing pieces.
+            const cityRefExisting = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
+            const whRefExisting = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
 
-            const cities = await fetchNpCities(cityText);
-            const cityMatch = (cities || []).find(c => _npNormText((c && c.name) || '') === _npNormText(cityText));
-            const cityRef = cityMatch && cityMatch.ref ? String(cityMatch.ref) : '';
-            if (!cityRef) return false;
-            if (cityRefInput) cityRefInput.value = cityRef;
+            let cityRef = cityRefExisting;
+            let whRef = whRefExisting;
 
-            const whs = await fetchNpWarehouses(cityRef, whText);
-            const whMatch = (whs || []).find(w => _npNormText((w && w.name) || '') === _npNormText(whText));
-            const whRef = whMatch && whMatch.ref ? String(whMatch.ref) : '';
-            if (!whRef) return false;
-            if (warehouseRefInput) warehouseRefInput.value = whRef;
+            if (!cityRef){
+                if (!cityText) return false;
+                const cities = await fetchNpCities(cityText);
+                const cityNeedle = _npNormText(cityText);
+                let cityMatch = (cities || []).find(c => _npNormText((c && c.name) || '') === cityNeedle);
+                if (!cityMatch){
+                    cityMatch = (cities || []).find(c => _npNormText((c && c.name) || '').startsWith(cityNeedle));
+                }
+                cityRef = cityMatch && cityMatch.ref ? String(cityMatch.ref) : '';
+                if (!cityRef) return false;
+                if (cityRefInput) cityRefInput.value = cityRef;
+            }
+
+            if (!whRef){
+                if (!whText) return false;
+                const whs = await fetchNpWarehouses(cityRef, whText);
+                const whNeedle = _npNormText(whText);
+                let whMatch = (whs || []).find(w => _npNormText((w && w.name) || '') === whNeedle);
+                if (!whMatch){
+                    whMatch = (whs || []).find(w => _npNormText((w && w.name) || '').startsWith(whNeedle));
+                }
+                whRef = whMatch && whMatch.ref ? String(whMatch.ref) : '';
+                if (!whRef) return false;
+                if (warehouseRefInput) warehouseRefInput.value = whRef;
+            }
 
             return npRefsOkForTtn();
         })
@@ -1044,12 +1063,18 @@ function npBlockIfMissingRefs(e){
                 }catch(_e){}
                 if (formEl) formEl.submit();
             } else {
-                alert('Для створення ТТН Нова Пошта потрібно вибрати Місто та Відділення зі списку підказок (щоб заповнились refs).');
+                const cr = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
+                const wr = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
+                const missing = (!cr ? 'місто' : '') + ((!cr && !wr) ? ' та ' : '') + (!wr ? 'відділення' : '');
+                alert('Для створення ТТН Нова Пошта потрібно вибрати ' + missing + ' зі списку підказок (щоб заповнились refs).');
             }
         })
         .catch(() => {
             window._npResolvingRefsOnSubmit = false;
-            alert('Для створення ТТН Нова Пошта потрібно вибрати Місто та Відділення зі списку підказок (щоб заповнились refs).');
+            const cr = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
+            const wr = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
+            const missing = (!cr ? 'місто' : '') + ((!cr && !wr) ? ' та ' : '') + (!wr ? 'відділення' : '');
+            alert('Для створення ТТН Нова Пошта потрібно вибрати ' + missing + ' зі списку підказок (щоб заповнились refs).');
         });
 }
 
