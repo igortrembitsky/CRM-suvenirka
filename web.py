@@ -169,6 +169,30 @@ def map_crm_status_to_woo(raw_status: str):
     return CRM_TO_WOO_STATUS.get(code)
 
 
+def _woo_sync_status_single(woo_id: int, crm_status_code: str):
+    woo_status = map_crm_status_to_woo(crm_status_code)
+    if not woo_status:
+        return None
+    woo_api.update_order_status(int(woo_id), woo_status)
+    return woo_status
+
+
+def _woo_sync_status_bulk(woo_ids: list[int], crm_status_code: str):
+    woo_status = map_crm_status_to_woo(crm_status_code)
+    if not woo_status:
+        return 0
+    updates = []
+    for wid in (woo_ids or []):
+        try:
+            updates.append({"id": int(wid), "status": woo_status})
+        except Exception:
+            continue
+    if not updates:
+        return 0
+    woo_api.update_orders_status_batch(updates)
+    return len(updates)
+
+
 PAYMENT_STATE_LABELS = {
     "paid": "LiqPay",
     "cod": "Наложка",
@@ -1117,6 +1141,13 @@ def update_order_status_inline(woo_id: int):
             except Exception:
                 pass
 
+    woo_status_sent = None
+    woo_error = ""
+    try:
+        woo_status_sent = _woo_sync_status_single(int(woo_id), status_code)
+    except Exception as e:
+        woo_error = (str(e) or "")[:500]
+
     badge = STATUS_BADGES.get(status_code, STATUS_BADGES["new"])
     return jsonify(
         {
@@ -1126,6 +1157,8 @@ def update_order_status_inline(woo_id: int):
             "status_class": badge.get("class"),
             "ttn_number": ttn_number,
             "ttn_error": ttn_error,
+            "woo_status": woo_status_sent,
+            "woo_error": woo_error,
         }
     )
 
@@ -1183,7 +1216,14 @@ def update_orders_status_bulk():
             }
         )
 
-    return jsonify({"updated": updated, "ttn_errors": ttn_errors})
+    woo_ok = 0
+    woo_error = ""
+    try:
+        woo_ok = _woo_sync_status_bulk(ids, status_code)
+    except Exception as e:
+        woo_error = (str(e) or "")[:500]
+
+    return jsonify({"updated": updated, "ttn_errors": ttn_errors, "woo_ok": woo_ok, "woo_error": woo_error})
 
 
 @app.post("/sync")
@@ -1706,8 +1746,16 @@ def order_card(woo_id: int):
                     db.update_order_fields(int(woo_id), {"ttn_error": str(e)})
                 except Exception:
                     pass
+
+        woo_err = ""
+        try:
+            _woo_sync_status_single(int(woo_id), status_code)
+        except Exception as e:
+            woo_err = (str(e) or "")[:500]
         if close_after_save:
             return redirect(url_for("index"))
+        if woo_err:
+            return redirect(url_for("order_card", woo_id=woo_id, saved=1, woo_err=woo_err))
         return redirect(url_for("order_card", woo_id=woo_id, saved=1))
 
     o = dict(row)
@@ -1776,6 +1824,7 @@ def order_card(woo_id: int):
     prev_woo_id, next_woo_id = db.get_prev_next_woo_ids(woo_id)
 
     saved = request.args.get("saved") == "1"
+    woo_err = (request.args.get("woo_err") or "").strip()
 
     return render_template(
         "order.html",
@@ -1783,6 +1832,7 @@ def order_card(woo_id: int):
         items=items,
         status_badges=STATUS_BADGES,
         saved=saved,
+        woo_err=woo_err,
         prev_woo_id=prev_woo_id,
         next_woo_id=next_woo_id,
     )

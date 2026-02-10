@@ -373,6 +373,9 @@ button{
 {% if o.get('ttn_error','') %}
 <div style="margin-top:6px; color:#b00020; font-size:13px; white-space:pre-wrap; word-break:break-word;">{{ o.get('ttn_error','') }}</div>
 {% endif %}
+{% if woo_err %}
+<div style="margin-top:6px; color:#b00020; font-size:13px; white-space:pre-wrap; word-break:break-word;">Woo: {{ woo_err }}</div>
+{% endif %}
 </div>
 
 </div>
