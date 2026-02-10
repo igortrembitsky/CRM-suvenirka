@@ -1235,9 +1235,27 @@ def sync_now():
 
     try:
         _LAST_SYNC_ERROR = None
-        from sync import sync_orders
-        sync_orders()
-        _LAST_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S")
+        if (date_from or "").strip() or (date_to or "").strip():
+            from sync import sync_orders_range
+            stats = sync_orders_range(date_from or None, date_to or None)
+        else:
+            from sync import sync_orders
+            stats = sync_orders()
+
+        fetched = None
+        upserted = None
+        pages = None
+        try:
+            if isinstance(stats, dict):
+                fetched = stats.get("fetched")
+                upserted = stats.get("upserted")
+                pages = stats.get("pages")
+        except Exception:
+            pass
+        suffix = ""
+        if fetched is not None or upserted is not None or pages is not None:
+            suffix = f" (woo={fetched}, saved={upserted}, pages={pages})"
+        _LAST_SYNC_AT = time.strftime("%Y-%m-%d %H:%M:%S") + suffix
     except Exception as e:
         _LAST_SYNC_ERROR = str(e)
     finally:

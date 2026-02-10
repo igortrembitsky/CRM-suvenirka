@@ -89,12 +89,14 @@ def sync_orders():
     pending_delete_ids = db.pending_woo_delete_ids(limit=10000)
 
     orders = []
+    fetched_pages = 0
     while page <= pages_limit:
         chunk = get_orders(per_page, page=page)
         if not chunk:
             break
 
         orders.extend(chunk)
+        fetched_pages += 1
 
         if max_existing_id is not None:
             try:
@@ -106,6 +108,7 @@ def sync_orders():
 
         page += 1
 
+    upserted = 0
     for o in orders:
 
         try:
@@ -207,9 +210,16 @@ def sync_orders():
         }
 
         db.create_or_update_order(order)
+        upserted += 1
         print("DEBUG:", order["woo_id"], status)
 
     print("Синзронизация завершена")
+    return {
+        "fetched": len(orders),
+        "upserted": upserted,
+        "pages": fetched_pages,
+        "max_existing_id": max_existing_id,
+    }
 
 def _iso_after_before_from_dates(date_from: Optional[str], date_to: Optional[str]):
     df = (date_from or "").strip()
@@ -228,13 +238,16 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
     after, before = _iso_after_before_from_dates(date_from, date_to)
 
     orders = []
+    fetched_pages = 0
     while page <= pages_limit:
         chunk = get_orders(per_page, page=page, after=after, before=before)
         if not chunk:
             break
         orders.extend(chunk)
+        fetched_pages += 1
         page += 1
 
+    upserted = 0
     for o in orders:
 
         try:
@@ -326,8 +339,16 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
         }
 
         db.create_or_update_order(order)
+        upserted += 1
 
     print("Синхронизация завершена")
+    return {
+        "fetched": len(orders),
+        "upserted": upserted,
+        "pages": fetched_pages,
+        "after": after,
+        "before": before,
+    }
 # ---------------------------------
 
 if __name__ == "__main__":

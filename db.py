@@ -221,7 +221,7 @@ def list_orders():
                delivery_service, shipping_method, city_ref, warehouse_ref, comment,
                ttn_number, ttn_error, ttn_created_at
         FROM orders
-        ORDER BY woo_id DESC
+        ORDER BY created_at DESC, woo_id DESC
     """)
 
     rows = cur.fetchall()
@@ -276,7 +276,7 @@ def list_orders_filtered(
         "SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product, "
         "       delivery_service, shipping_method, city_ref, warehouse_ref, comment, "
         "       ttn_number, ttn_error, ttn_created_at "
-        "FROM orders" + where_sql + " ORDER BY woo_id DESC LIMIT ? OFFSET ?"
+        "FROM orders" + where_sql + " ORDER BY created_at DESC, woo_id DESC LIMIT ? OFFSET ?"
     )
     cur.execute(sql, (*params, int(limit), int(offset)))
 

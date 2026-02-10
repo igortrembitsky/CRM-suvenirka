@@ -21,7 +21,8 @@ def get_orders(per_page=100, page=1, after=None, before=None):
     r = requests.get(
         url,
         auth=(CONSUMER_KEY, CONSUMER_SECRET),
-        params=params
+        params=params,
+        timeout=30,
     )
     r.raise_for_status()
     return r.json()
