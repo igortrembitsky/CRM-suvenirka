@@ -1235,12 +1235,8 @@ def sync_now():
 
     try:
         _LAST_SYNC_ERROR = None
-        if (date_from or "").strip() or (date_to or "").strip():
-            from sync import sync_orders_range
-            stats = sync_orders_range(date_from or None, date_to or None)
-        else:
-            from sync import sync_orders
-            stats = sync_orders()
+        from sync import sync_orders
+        stats = sync_orders()
 
         fetched = None
         upserted = None
