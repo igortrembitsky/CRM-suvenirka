@@ -63,6 +63,98 @@ def map_status(woo_status, shipping_method):
 
     return "Новий"
 
+
+def normalize_status_code(raw_status: str):
+    s = (raw_status or "").strip()
+    sl = s.lower()
+
+    if sl in ("new", "processing"):
+        return "new"
+    if sl in ("not_paid", "pending"):
+        return "not_paid"
+    if sl in ("hold", "on-hold"):
+        return "hold"
+    if sl in ("ttn", "ttn_created"):
+        return "ttn"
+    if sl in ("confirmed", "confirmed_np", "confirmed_up", "np_confirmed", "up_confirmed", "confirmed-np", "confirmed-up"):
+        return "confirmed"
+    if sl in ("shipped", "completed"):
+        return "shipped"
+    if sl in ("no_answer", "no-answer", "na", "nedozvonilisya", "nedozvonylasia"):
+        return "no_answer"
+    if sl in ("canceled", "cancelled"):
+        return "canceled"
+    if sl in ("bad", "crazy"):
+        return "bad"
+    if sl in ("paid", "pay"):
+        return "confirmed"
+
+    # Woo custom failed statuses
+    if sl in (
+        "failed",
+        "ne-vdalosya",
+        "ne_vdalosya",
+        "ne vdalosya",
+        "не вдалося",
+    ):
+        return "hold"
+
+    # legacy text values
+    if s in ("Новий", "Новый"):
+        return "new"
+    if s in ("Не оплачено", "Не оплачен"):
+        return "not_paid"
+    if s in ("На утриманні", "На удержании"):
+        return "hold"
+    if s in ("Створено ТТН", "Создана ТТН"):
+        return "ttn"
+    if s in ("Підтверджено", "Підтверджен", "Подтверждён"):
+        return "confirmed"
+    if s in ("Підтверджено НП", "Підтверджен НП", "Подтверждён НП"):
+        return "confirmed"
+    if s in ("Підтверджено УП", "Підтверджен УП", "Подтверждён УП"):
+        return "confirmed"
+    if s in ("Відправлено", "Отправлено"):
+        return "shipped"
+    if s in ("Не додзвонилися", "Недозвонилися", "Не дозвонились", "Недозвонились"):
+        return "no_answer"
+    if s in ("Скасовано", "Отменён"):
+        return "canceled"
+    if s in ("Невменяшка", "Неадекват"):
+        return "bad"
+
+    if s in ("Не вдалося", "Не удалось"):
+        return "hold"
+
+    return "new"
+
+
+def map_status_code(woo_status: str, shipping_method: str) -> str:
+    woo_status = (woo_status or "").strip()
+    shipping_method = (shipping_method or "")
+    code = normalize_status_code(woo_status)
+
+    # Keep previous behavior: 'pay' in Woo is treated as confirmed.
+    if (woo_status or "").lower() == "pay":
+        return "confirmed"
+
+    # Some shops encode confirmation in custom status.
+    if (woo_status or "").lower() == "confirmed":
+        return "confirmed"
+
+    # Shipping method-specific labels are not needed for code.
+    _ = shipping_method
+    return code
+
+
+def map_status_and_payment_state(woo_status: str, shipping_method: str):
+    status_code = map_status_code(woo_status, shipping_method)
+    # For Woo status "Не вдалося" we force payment_state to 'not_paid'
+    s = (woo_status or "").strip().lower()
+    if s in ("failed", "ne-vdalosya", "ne_vdalosya", "ne vdalosya", "не вдалося", "не удалось"):
+        return status_code, "not_paid"
+    return status_code, None
+
 # ---------------------------------
 
 def get_value(obj, path):
@@ -108,7 +200,13 @@ def sync_orders():
 
         page += 1
 
+    try:
+        existing_ids = db.get_existing_woo_ids([x.get("id") for x in (orders or []) if x.get("id") is not None])
+    except Exception:
+        existing_ids = set()
+
     upserted = 0
+    updated_statuses = 0
     for o in orders:
 
         try:
@@ -116,6 +214,24 @@ def sync_orders():
         except Exception:
             wid = None
         if wid is not None and wid in pending_delete_ids:
+            continue
+
+        # For existing orders: update ONLY status (pull from Woo), keep other CRM fields intact.
+        if wid is not None and wid in existing_ids:
+            try:
+                shipping_method_id = get_value(o, SHIPPING_LINE_FIELDS["method_id"])
+                shipping_method_title = get_value(o, SHIPPING_LINE_FIELDS["method_title"])
+                shipping_method_full = " ".join([str(shipping_method_id or "").strip(), str(shipping_method_title or "").strip()]).strip()
+                status_code, ps = map_status_and_payment_state(o.get("status"), shipping_method_full)
+                db.update_status_only(int(wid), status_code)
+                if ps:
+                    try:
+                        db.update_order_fields(int(wid), {"payment_state": ps})
+                    except Exception:
+                        pass
+                updated_statuses += 1
+            except Exception:
+                pass
             continue
 
         # ---------- ITEMS (from Woo line_items) ----------
@@ -185,7 +301,7 @@ def sync_orders():
                 address = f"{address}, {postcode}"
 
         # ---------- STATUS ----------
-        status = map_status(o.get("status"), shipping_method)
+        status, payment_state = map_status_and_payment_state(o.get("status"), shipping_method)
 
         comment = get_value(o, ORDER_FIELDS["customer_note"])
 
@@ -205,6 +321,7 @@ def sync_orders():
             "status": status,
             "delivery_service": delivery_service,
             "shipping_method": shipping_method_full or shipping_method,
+            "payment_state": payment_state,
             "payment_method": get_value(o, ORDER_FIELDS["payment_method_title"]),
             "comment": comment
         }
@@ -217,6 +334,7 @@ def sync_orders():
     return {
         "fetched": len(orders),
         "upserted": upserted,
+        "updated_statuses": updated_statuses,
         "pages": fetched_pages,
         "max_existing_id": max_existing_id,
     }
@@ -247,7 +365,13 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
         fetched_pages += 1
         page += 1
 
+    try:
+        existing_ids = db.get_existing_woo_ids([x.get("id") for x in (orders or []) if x.get("id") is not None])
+    except Exception:
+        existing_ids = set()
+
     upserted = 0
+    updated_statuses = 0
     for o in orders:
 
         try:
@@ -255,6 +379,24 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
         except Exception:
             wid = None
         if wid is not None and wid in pending_delete_ids:
+            continue
+
+        # For existing orders: update ONLY status (pull from Woo), keep other CRM fields intact.
+        if wid is not None and wid in existing_ids:
+            try:
+                shipping_method_id = get_value(o, SHIPPING_LINE_FIELDS["method_id"])
+                shipping_method_title = get_value(o, SHIPPING_LINE_FIELDS["method_title"])
+                shipping_method_full = " ".join([str(shipping_method_id or "").strip(), str(shipping_method_title or "").strip()]).strip()
+                status_code, ps = map_status_and_payment_state(o.get("status"), shipping_method_full)
+                db.update_status_only(int(wid), status_code)
+                if ps:
+                    try:
+                        db.update_order_fields(int(wid), {"payment_state": ps})
+                    except Exception:
+                        pass
+                updated_statuses += 1
+            except Exception:
+                pass
             continue
 
         items = []
@@ -316,7 +458,7 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
             if postcode:
                 address = f"{address}, {postcode}"
 
-        status = map_status(o.get("status"), shipping_method)
+        status, payment_state = map_status_and_payment_state(o.get("status"), shipping_method)
         comment = get_value(o, ORDER_FIELDS["customer_note"])
 
         order = {
@@ -334,6 +476,7 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
             "status": status,
             "delivery_service": delivery_service,
             "shipping_method": shipping_method_full or shipping_method,
+            "payment_state": payment_state,
             "payment_method": get_value(o, ORDER_FIELDS["payment_method_title"]),
             "comment": comment
         }
@@ -345,6 +488,7 @@ def sync_orders_range(date_from: Optional[str] = None, date_to: Optional[str] = 
     return {
         "fetched": len(orders),
         "upserted": upserted,
+        "updated_statuses": updated_statuses,
         "pages": fetched_pages,
         "after": after,
         "before": before,

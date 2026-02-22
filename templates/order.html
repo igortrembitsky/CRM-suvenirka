@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Заказ {{ o['woo_id'] }}</title>
 
 <style>
@@ -62,6 +63,164 @@ body{
     justify-content:flex-end;
 }
 
+@media (max-width: 520px){
+    .topbar{
+        display:grid;
+        grid-template-columns:1fr auto;
+        grid-template-areas:
+            "title status"
+            "nav nav";
+        gap:10px 12px;
+        align-items:center;
+    }
+    .topbar > div:nth-child(1){ grid-area:title; }
+    .status-wrap{ grid-area:status; justify-content:flex-end; }
+    .order-nav{ grid-area:nav; justify-content:center; gap:12px; }
+}
+
+.order-summary{
+    margin:12px 0 18px;
+    padding:12px 14px;
+    border:1px solid #d7e7fb;
+    background:#f6fbff;
+    border-radius:12px;
+}
+
+.order-summary-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px 24px;
+}
+
+.os-col{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    min-width:0;
+}
+
+.os-col--full{
+    grid-column:1 / -1;
+}
+
+@media (max-width: 820px){
+    .order-summary-grid{
+        grid-template-columns:1fr;
+    }
+}
+
+.os-item{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    min-width:0;
+}
+
+.os-ico{
+    width:18px;
+    height:18px;
+    flex:0 0 18px;
+    color:#0f5ea8;
+    margin-top:1px;
+}
+
+.os-text{ min-width:0; }
+
+.os-k{
+    font-size:12px;
+    color:#0f5ea8;
+    font-weight:800;
+    line-height:1.1;
+}
+
+.os-v{
+    font-size:13px;
+    color:#111;
+    font-weight:600;
+    line-height:1.25;
+    word-break:break-word;
+}
+
+.os-v--phone{
+    display:grid;
+    grid-template-columns:1fr auto;
+    grid-template-rows:auto auto;
+    column-gap:12px;
+    align-items:center;
+}
+
+.os-text--phone{
+    display:grid;
+    grid-template-columns:1fr auto;
+    grid-template-rows:auto auto;
+    column-gap:12px;
+    align-items:center;
+    min-width:0;
+}
+
+.os-text--phone .os-k{ grid-column:1; grid-row:1; }
+.os-text--phone .os-v{ grid-column:1; grid-row:2; }
+.os-text--phone .viber-link{ grid-column:2; grid-row:1 / span 2; align-self:center; justify-self:end; margin-left:8px; }
+
+.viber-link{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:22px;
+    height:22px;
+    border-radius:4px;
+    background:transparent;
+    text-decoration:none;
+}
+
+.viber-link img{
+    width:22px;
+    height:22px;
+    display:block;
+    object-fit:contain;
+}
+
+.os-v--comment{
+    color:#111;
+}
+
+.order-summary .os-k.os-k--comment{
+    color:#7b1fa2;
+}
+
+.order-summary .os-ico.os-ico--comment{
+    color:#7b1fa2;
+}
+
+.os-v a{
+    color:#111;
+    text-decoration:none;
+}
+
+.os-v--phone a.tel-link{
+    text-decoration:underline;
+    text-underline-offset:2px;
+}
+
+.os-v a:hover{ text-decoration:underline; }
+
+.os-ico--uah{
+    width:18px;
+    height:18px;
+    flex:0 0 18px;
+    color:#0f5ea8;
+    margin-top:1px;
+    stroke-width:2;
+    stroke-linecap:round;
+}
+
+.call-attempts{
+    font-weight:700;
+    color:#0f5ea8;
+    font-size:12px;
+    white-space:nowrap;
+}
+
 /* ----- FORM ----- */
 input,select,textarea{
     width:100%;
@@ -69,6 +228,27 @@ input,select,textarea{
     border:1px solid #ccc;
     font-size:14px;
     box-sizing:border-box;
+}
+
+.qty-wrap{
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+
+.qty-wrap input.item-qty{
+    width:70px;
+    text-align:center;
+}
+
+.qty-btn{
+    width:32px;
+    height:32px;
+    padding:0;
+    border:1px solid #ccc;
+    background:#f5f5f5;
+    font-weight:800;
+    cursor:pointer;
 }
 
 label{
@@ -98,6 +278,15 @@ label{
     display:grid;
     grid-template-columns:1fr 1fr 1fr 1fr;
     gap:12px;
+}
+
+@media (max-width: 820px){
+    .grid-4{ grid-template-columns:1fr 1fr; }
+}
+
+@media (max-width: 520px){
+    .grid-4{ grid-template-columns:1fr; }
+    .grid-2{ grid-template-columns:1fr; }
 }
 
 /* ----- BADGES ----- */
@@ -140,7 +329,26 @@ label{
 .items th:nth-child(5){width:40px;}
 
 .items th{
-    background:#f3f3f3;
+    background:#f0f0f0;
+}
+
+@media (max-width: 520px){
+    .items{ table-layout:auto; }
+    .items tr{ display:block; margin:0 0 10px; border:1px solid #ddd; border-radius:10px; overflow:hidden; }
+    .items tr:first-child{ display:none; }
+    .items td{ display:flex; align-items:center; gap:10px; border:0; border-top:1px solid #eee; padding:10px; }
+    .items td:first-child{ border-top:0; }
+    .items td::before{ content:attr(data-label); font-size:12px; font-weight:800; color:#555; flex:0 0 78px; }
+    .items td:last-child{ justify-content:flex-end; }
+    .items td[data-label="Авто"]{ justify-content:space-between; }
+    .items td[data-label="Авто"]::before{ flex:0 0 78px; }
+    .items td[data-label="Удалить"]::before{ content:""; flex:0 0 0; }
+
+    .delivery-total-row{ flex-direction:column; align-items:stretch; gap:12px; }
+    .delivery-total-row > div{ width:100%; }
+    #deliveryServiceSelect{ width:100% !important; }
+    #itemsTotal{ width:100% !important; max-width:none !important; }
+    #deliveryIcon{ margin-top:0 !important; }
 }
 
 /* ----- BUTTONS ----- */
@@ -150,6 +358,16 @@ label{
     align-items:center;
     margin-top:20px;
     gap:10px;
+}
+
+@media (max-width: 520px){
+    .actions{ flex-direction:column; align-items:stretch; }
+    .left-actions, .center-actions, .right-actions{ width:100%; }
+    .center-actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .left-actions button, .center-actions button, .right-actions button{ width:100%; padding:12px 10px; }
+    .right-actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .left-actions{ order:3; }
+    .right-actions{ order:2; }
 }
 
 .left-actions button{
@@ -191,6 +409,19 @@ button{
     line-height:1.25;
     word-break:break-word;
 }
+
+.mobile-quick-actions{ display:none; }
+
+@media (max-width: 520px){
+    .mobile-quick-actions{
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:10px;
+        margin:0 0 14px;
+    }
+    .mobile-quick-actions button{ width:100%; padding:12px 10px; }
+    .center-actions{ display:none; }
+}
 </style>
 </head>
 
@@ -199,7 +430,10 @@ button{
 <div class="card">
 
 <div class="topbar">
-    <h2>Заказ №{{ o['woo_id'] }}</h2>
+    <div>
+        <h2>Заказ №{{ o['woo_id'] }}</h2>
+    </div>
+
     <div class="order-nav">
         {% if prev_woo_id %}
             <a href="/order/{{ prev_woo_id }}"><span class="arrow">&larr;</span>Предыдущий</a>
@@ -219,7 +453,105 @@ button{
     </div>
 </div>
 
-<form method="post">
+<div class="order-summary">
+    {% set _ps = (o.get('payment_state','') or '').lower() %}
+    <div class="order-summary-grid">
+        <div class="os-col">
+
+            <div class="os-item">
+                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 21v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <div class="os-text"><div class="os-k">Замовник</div><div class="os-v">{{ o.get('customer_name','') }}</div></div>
+            </div>
+            <div class="os-item">
+                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.86.33 1.7.62 2.5a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.58-1.14a2 2 0 0 1 2.11-.45c.8.29 1.64.5 2.5.62A2 2 0 0 1 22 16.92Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="os-text">
+                    <div class="os-text--phone">
+                        <div class="os-k">Телефон</div>
+                        <div class="os-v os-v--phone">
+                            <a class="tel-link" id="phoneLink" href="tel:{{ o.get('phone','') }}">{{ o.get('phone','') }}</a>
+                            <span class="call-attempts" id="callAttempts" data-count="{{ o.get('call_attempts', 0) or 0 }}">({{ o.get('call_attempts', 0) or 0 }} раз)</span>
+                        </div>
+                        <a class="viber-link" id="viberLink" href="#" data-phone="{{ o.get('phone','') }}" aria-label="Viber" title="Viber">
+                            <img src="/assets/viber.png" alt="Viber">
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="os-item">
+                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 10l1.5 10h11L19 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="os-text">
+                    <div class="os-k">Товар</div>
+                    <div class="os-v">
+                        {% if items and items|length>0 %}
+                            {% for it in items %}
+                                <div>{{ it.get('name','') }}{% if it.get('qty',0) and it.get('qty',0)|int > 1 %} x{{ it.get('qty',0)|int }}{% endif %}</div>
+                            {% endfor %}
+                        {% else %}
+                            <div></div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="os-item">
+                <svg class="os-ico os-ico--uah" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 6h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M8 10h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M10 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M15 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M7 14h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <div class="os-text"><div class="os-k">Сума (итог)</div><div class="os-v">{{ o.get('amount','') }}</div></div>
+            </div>
+
+        </div>
+
+        <div class="os-col">
+            <div class="os-item">
+                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 21s7-4.44 7-11a7 7 0 1 0-14 0c0 6.56 7 11 7 11Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="os-text"><div class="os-k">Місто</div><div class="os-v">{{ o.get('city','') }}</div></div>
+            </div>
+            <div class="os-item">
+                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 10l1.5 10h11L19 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="os-text"><div class="os-k">Адреса</div><div class="os-v">{{ o.get('address','') }}</div></div>
+            </div>
+            <div class="os-item">
+                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="2"/><path d="M2 10h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <div class="os-text"><div class="os-k">Спосіб оплати</div><div class="os-v">{% if _ps == 'cod' %}Наложка{% elif _ps == 'paid' %}LiqPay{% elif _ps == 'card' %}На карту{% elif _ps == 'not_paid' %}Не оплачено{% else %}{{ o.get('payment_method','') }}{% endif %}</div></div>
+            </div>
+
+            {% if o.get('comment','') %}
+            <div class="os-item">
+                <svg class="os-ico os-ico--comment" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="os-text"><div class="os-k os-k--comment">Коментар</div><div class="os-v os-v--comment">{{ o.get('comment','') }}</div></div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<div class="mobile-quick-actions">
+    <button type="submit"
+            form="orderForm"
+            formaction="{{ url_for('order_card', woo_id=o['woo_id'], close=1) }}"
+            name="quick_status"
+            value="confirmed"
+            style="background:#1976d2;color:#fff;">
+      Підтверджен
+    </button>
+
+    <button type="submit"
+            form="orderForm"
+            formaction="{{ url_for('order_card', woo_id=o['woo_id'], close=1) }}"
+            name="quick_status"
+            value="ttn"
+            style="background:#fb8c00;color:#fff;">
+      Створено ТТН
+    </button>
+</div>
+
+<form method="post" id="orderForm">
 
 <!-- ================= ТОВАРЫ ================= -->
 
@@ -230,34 +562,38 @@ button{
 
 <table class="items" id="itemsTable">
 <tr>
-    <th>Товар</th>
-    <th>Кол-во</th>
-    <th>Сумма</th>
-    <th>Авто</th>
-    <th></th>
+    <th data-label="Товар">Товар</th>
+    <th data-label="Кол-во">Кол-во</th>
+    <th data-label="Сумма">Сумма</th>
+    <th data-label="Авто">Авто</th>
+    <th data-label="Удалить"></th>
 </tr>
 
 {% for it in items %}
 <tr>
-<td>
+<td data-label="Товар">
 <select name="item_name" class="item-name" style="width:100%;"></select>
 <input type="hidden" class="item-name-init" value="{{ it.get('name','') }}">
 </td>
 
-<td>
-<input type="number" name="item_qty" class="item-qty" value="{{ it.get('qty',1) }}" min="1">
+<td data-label="Кол-во">
+<div class="qty-wrap">
+  <button type="button" class="qty-btn qty-dec" aria-label="Уменьшить">-</button>
+  <input type="number" name="item_qty" class="item-qty" value="{{ it.get('qty',1) }}" min="1">
+  <button type="button" class="qty-btn qty-inc" aria-label="Увеличить">+</button>
+</div>
 </td>
 
-<td>
+<td data-label="Сумма">
 <input type="text" name="item_amount" class="item-amount" value="{{ it.get('amount','') }}">
 </td>
 
-<td style="text-align:center;">
+<td data-label="Авто" style="text-align:center;">
 <input type="hidden" name="item_amount_auto" class="item-amount-auto-hidden" value="{% if it.get('amount_auto') is none or it.get('amount_auto')==1 %}1{% else %}0{% endif %}">
 <input type="checkbox" class="item-amount-auto" {% if it.get('amount_auto') is none or it.get('amount_auto')==1 %}checked{% endif %} style="width:auto;">
 </td>
 
-<td>
+<td data-label="Удалить">
 <button type="button" onclick="removeRow(this)">×</button>
 </td>
 </tr>
@@ -268,7 +604,7 @@ button{
 </div>
 
 <div class="row">
-<div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+<div class="delivery-total-row" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
 
   <div style="display:flex; align-items:center; gap:10px;">
     <div>
@@ -380,6 +716,13 @@ button{
 
 </div>
 
+<!-- ================= КОММЕНТАРИЙ ================= -->
+
+<div class="row">
+<label>Комментарий</label>
+<textarea name="comment">{{ o.get('comment','') }}</textarea>
+</div>
+
 <div class="row">
 <label>Статус</label>
 <select name="status">
@@ -391,24 +734,8 @@ button{
 </select>
 </div>
 
-<!-- ================= КОММЕНТАРИЙ ================= -->
-
-<div class="row">
-<label>Комментарий</label>
-<textarea name="comment">{{ o.get('comment','') }}</textarea>
-</div>
-
 <!-- ================= КНОПКИ ================= -->
 <div class="actions">
-
-  <div class="left-actions">
-    <button
-      formaction="{{ url_for('delete_order', woo_id=o['woo_id']) }}"
-      onclick="return confirm('Удалить заказ?')"
-      style="background:#8b1d1d;color:#fff;">
-      Удалить
-    </button>
-  </div>
 
   <div class="center-actions">
     <button type="submit"
@@ -442,6 +769,15 @@ button{
     </button>
   </div>
 
+  <div class="left-actions">
+    <button
+      formaction="{{ url_for('delete_order', woo_id=o['woo_id']) }}"
+      onclick="return confirm('Удалить заказ?')"
+      style="background:#8b1d1d;color:#fff;">
+      Удалить
+    </button>
+  </div>
+
 </div>
 
 </form>
@@ -452,10 +788,14 @@ button{
 let _wooPriceCache = {};
 let _wooListLoaded = false;
 
-function parseNumber(val){
-    const s = String(val ?? '').trim().replace(',', '.');
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
+document.addEventListener('DOMContentLoaded', () => {
+    ensureWooOptionsLoaded();
+});
+
+function parseNumber(n){
+    if (n === null || n === undefined) return null;
+    const num = parseFloat(n);
+    return Number.isFinite(num) ? num : null;
 }
 
 function formatMoney(n){
@@ -556,7 +896,13 @@ function addRow(){
 <td>
   <select name="item_name" class="item-name" style="width:100%;"></select>
 </td>
-<td><input type="number" name="item_qty" class="item-qty" value="1" min="1"></td>
+<td>
+  <div class="qty-wrap">
+    <button type="button" class="qty-btn qty-dec" aria-label="Уменьшить">-</button>
+    <input type="number" name="item_qty" class="item-qty" value="1" min="1">
+    <button type="button" class="qty-btn qty-inc" aria-label="Увеличить">+</button>
+  </div>
+</td>
 <td><input type="text" name="item_amount" class="item-amount" value=""></td>
 <td style="text-align:center;">
   <input type="hidden" name="item_amount_auto" class="item-amount-auto-hidden" value="1">
@@ -629,6 +975,25 @@ function wireRow(row){
 
     qtyInput.addEventListener('input', recalcRow);
     autoCb.addEventListener('change', recalcRow);
+
+    const decBtn = row.querySelector('.qty-dec');
+    const incBtn = row.querySelector('.qty-inc');
+    if (decBtn){
+        decBtn.addEventListener('click', () => {
+            const cur = parseInt(qtyInput.value || '1', 10);
+            const next = Math.max(1, (Number.isFinite(cur) ? cur : 1) - 1);
+            qtyInput.value = String(next);
+            recalcRow();
+        });
+    }
+    if (incBtn){
+        incBtn.addEventListener('click', () => {
+            const cur = parseInt(qtyInput.value || '1', 10);
+            const next = (Number.isFinite(cur) ? cur : 1) + 1;
+            qtyInput.value = String(next);
+            recalcRow();
+        });
+    }
 
     amtInput.addEventListener('input', () => {
         if (!autoCb.checked){
@@ -732,6 +1097,66 @@ document.addEventListener("DOMContentLoaded", function(){
 
     updateBadge();
     statusSelect.addEventListener("change", updateBadge);
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const a = document.getElementById('viberLink');
+    if (!a) return;
+
+    const raw = String(a.dataset.phone || '').trim();
+    const digits = raw.replace(/\D+/g, '');
+    if (!digits){
+        a.style.display = 'none';
+        return;
+    }
+
+    let intl = digits;
+    if (intl.length === 10 && intl.startsWith('0')){
+        intl = '38' + intl;
+    }
+
+    const plus = '+' + intl;
+    a.href = 'viber://chat?number=' + encodeURIComponent(plus);
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const phoneLink = document.getElementById('phoneLink');
+    const badge = document.getElementById('callAttempts');
+    if (!phoneLink || !badge) return;
+
+    function render(n){
+        const v = Number.isFinite(n) ? n : 0;
+        badge.dataset.count = String(v);
+        badge.textContent = '(' + v + ' раз)';
+    }
+
+    phoneLink.addEventListener('click', () => {
+        const url = '/order/{{ o["woo_id"] }}/call_attempt';
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+            keepalive: true,
+        })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (data && typeof data.call_attempts !== 'undefined'){
+                const n = parseInt(String(data.call_attempts || '0'), 10);
+                render(Number.isFinite(n) ? n : 0);
+            } else {
+                const cur = parseInt(String(badge.dataset.count || '0'), 10);
+                render((Number.isFinite(cur) ? cur : 0) + 1);
+            }
+        })
+        .catch(() => {
+            const cur = parseInt(String(badge.dataset.count || '0'), 10);
+            render((Number.isFinite(cur) ? cur : 0) + 1);
+        });
+    });
 });
 </script>
 
@@ -1001,84 +1426,9 @@ function npBlockIfMissingRefs(e){
     const isTtnStatus = statusVal === 'ttn';
 
     if (!(isTtnQuick || isTtnStatus)) return;
-    if (npRefsOkForTtn()) return;
-
-    // Attempt to resolve refs from current input values on submit (exact match), then resubmit.
-    // This avoids false-positives when the user selected from datalist but refs were not synced.
-    if (window._npResolvingRefsOnSubmit){
-        e.preventDefault();
-        alert('Для створення ТТН Нова Пошта потрібно вибрати місто та відділення зі списку підказок (щоб заповнились refs).');
-        return;
-    }
-
-    e.preventDefault();
-    window._npResolvingRefsOnSubmit = true;
-
-    const submitter = (e && e.submitter) ? e.submitter : null;
-    const cityText = (cityInput ? String(cityInput.value || '').trim() : '');
-    const whText = (warehouseInput ? String(warehouseInput.value || '').trim() : '');
-
-    Promise.resolve()
-        .then(async () => {
-            // Use existing refs if already filled; resolve only missing pieces.
-            const cityRefExisting = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
-            const whRefExisting = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
-
-            let cityRef = cityRefExisting;
-            let whRef = whRefExisting;
-
-            if (!cityRef){
-                if (!cityText) return false;
-                const cities = await fetchNpCities(cityText);
-                const cityNeedle = _npNormText(cityText);
-                let cityMatch = (cities || []).find(c => _npNormText((c && c.name) || '') === cityNeedle);
-                if (!cityMatch){
-                    cityMatch = (cities || []).find(c => _npNormText((c && c.name) || '').startsWith(cityNeedle));
-                }
-                cityRef = cityMatch && cityMatch.ref ? String(cityMatch.ref) : '';
-                if (!cityRef) return false;
-                if (cityRefInput) cityRefInput.value = cityRef;
-            }
-
-            if (!whRef){
-                if (!whText) return false;
-                const whs = await fetchNpWarehouses(cityRef, whText);
-                const whNeedle = _npNormText(whText);
-                let whMatch = (whs || []).find(w => _npNormText((w && w.name) || '') === whNeedle);
-                if (!whMatch){
-                    whMatch = (whs || []).find(w => _npNormText((w && w.name) || '').startsWith(whNeedle));
-                }
-                whRef = whMatch && whMatch.ref ? String(whMatch.ref) : '';
-                if (!whRef) return false;
-                if (warehouseRefInput) warehouseRefInput.value = whRef;
-            }
-
-            return npRefsOkForTtn();
-        })
-        .then((ok) => {
-            window._npResolvingRefsOnSubmit = false;
-            if (ok){
-                try{
-                    if (formEl && formEl.requestSubmit && submitter){
-                        formEl.requestSubmit(submitter);
-                        return;
-                    }
-                }catch(_e){}
-                if (formEl) formEl.submit();
-            } else {
-                const cr = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
-                const wr = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
-                const missing = (!cr ? 'місто' : '') + ((!cr && !wr) ? ' та ' : '') + (!wr ? 'відділення' : '');
-                alert('Для створення ТТН Нова Пошта потрібно вибрати ' + missing + ' зі списку підказок (щоб заповнились refs).');
-            }
-        })
-        .catch(() => {
-            window._npResolvingRefsOnSubmit = false;
-            const cr = (cityRefInput ? String(cityRefInput.value || '').trim() : '');
-            const wr = (warehouseRefInput ? String(warehouseRefInput.value || '').trim() : '');
-            const missing = (!cr ? 'місто' : '') + ((!cr && !wr) ? ' та ' : '') + (!wr ? 'відділення' : '');
-            alert('Для створення ТТН Нова Пошта потрібно вибрати ' + missing + ' зі списку підказок (щоб заповнились refs).');
-        });
+    // Do not block submit if refs are missing.
+    // Backend will auto-resolve city_ref/warehouse_ref and attempt TTN creation.
+    return;
 }
 
 const formEl = document.querySelector('form');

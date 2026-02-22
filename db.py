@@ -20,7 +20,6 @@ def get_conn():
     conn.row_factory = sqlite3.Row
     return conn
 
-# ----------------------------
 
 def init_db():
     conn = get_conn()
@@ -56,6 +55,9 @@ def init_db():
     if "comment" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN comment TEXT")
 
+    if "call_attempts" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN call_attempts INTEGER")
+
     if "created_at" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN created_at TEXT")
 
@@ -74,6 +76,15 @@ def init_db():
         cur.execute("ALTER TABLE orders ADD COLUMN delivery_service TEXT")
     if "payment_state" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN payment_state TEXT")
+
+    if "is_deleted" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN is_deleted INTEGER")
+        try:
+            cur.execute("UPDATE orders SET is_deleted=0 WHERE is_deleted IS NULL")
+        except Exception:
+            pass
+    if "deleted_at" not in cols:
+        cur.execute("ALTER TABLE orders ADD COLUMN deleted_at TEXT")
 
     if "ttn_number" not in cols:
         cur.execute("ALTER TABLE orders ADD COLUMN ttn_number TEXT")
@@ -111,6 +122,116 @@ def init_db():
     conn.close()
 
 
+def purge_orders_bulk(woo_ids: list[int]):
+    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    if not ids:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    placeholders = ",".join(["?"] * len(ids))
+    cur.execute(f"DELETE FROM order_items WHERE woo_id IN ({placeholders})", tuple(ids))
+    cur.execute(f"DELETE FROM orders WHERE woo_id IN ({placeholders})", tuple(ids))
+
+    conn.commit()
+    conn.close()
+
+
+def trash_order(woo_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE orders SET is_deleted=1, deleted_at=datetime('now') WHERE woo_id=?",
+        (int(woo_id),),
+    )
+    conn.commit()
+    conn.close()
+
+
+def restore_order(woo_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE orders SET is_deleted=0, deleted_at='' WHERE woo_id=?",
+        (int(woo_id),),
+    )
+    conn.commit()
+    conn.close()
+
+
+def trash_orders_bulk(woo_ids: list[int]):
+    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    if not ids:
+        return
+    conn = get_conn()
+    cur = conn.cursor()
+    placeholders = ",".join(["?"] * len(ids))
+    cur.execute(
+        f"UPDATE orders SET is_deleted=1, deleted_at=datetime('now') WHERE woo_id IN ({placeholders})",
+        tuple(ids),
+    )
+    conn.commit()
+    conn.close()
+
+
+def restore_orders_bulk(woo_ids: list[int]):
+    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    if not ids:
+        return
+    conn = get_conn()
+    cur = conn.cursor()
+    placeholders = ",".join(["?"] * len(ids))
+    cur.execute(
+        f"UPDATE orders SET is_deleted=0, deleted_at='' WHERE woo_id IN ({placeholders})",
+        tuple(ids),
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_orders_bulk(woo_ids: list[int]):
+    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    if not ids:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    placeholders = ",".join(["?"] * len(ids))
+    cur.execute(f"DELETE FROM pending_woo_deletes WHERE woo_id IN ({placeholders})", tuple(ids))
+    cur.execute(f"DELETE FROM order_items WHERE woo_id IN ({placeholders})", tuple(ids))
+    cur.execute(f"DELETE FROM orders WHERE woo_id IN ({placeholders})", tuple(ids))
+
+    conn.commit()
+    conn.close()
+
+
+def update_status_only(woo_id, status):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("UPDATE orders SET status=? WHERE woo_id=?", (status, woo_id))
+    conn.commit()
+    conn.close()
+
+
+def increment_call_attempts(woo_id: int) -> int:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE orders SET call_attempts=COALESCE(call_attempts, 0) + 1 WHERE woo_id=?",
+        (int(woo_id),),
+    )
+    conn.commit()
+    cur.execute("SELECT COALESCE(call_attempts, 0) FROM orders WHERE woo_id=?", (int(woo_id),))
+    row = cur.fetchone()
+    conn.close()
+    try:
+        return int(row[0] or 0) if row else 0
+    except Exception:
+        return 0
+
+
 def list_pending_woo_deletes(limit: int = 500):
     conn = get_conn()
     cur = conn.cursor()
@@ -122,6 +243,25 @@ def list_pending_woo_deletes(limit: int = 500):
     rows = cur.fetchall()
     conn.close()
     return rows
+
+
+def list_np_orders_missing_ttn(limit: int = 200):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT woo_id
+        FROM orders
+        WHERE lower(coalesce(delivery_service,''))='np'
+          AND (ttn_number IS NULL OR trim(ttn_number)='')
+        ORDER BY created_at DESC, woo_id DESC
+        LIMIT ?
+        """,
+        (int(limit),),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [int(r[0]) for r in rows if r and r[0] is not None]
 
 
 def pending_woo_delete_ids(limit: int = 10000) -> set[int]:
@@ -164,10 +304,20 @@ def create_or_update_order(o):
     conn = get_conn()
     cur = conn.cursor()
 
+    call_attempts = o.get("call_attempts")
+    if call_attempts is None and o.get("woo_id") is not None:
+        try:
+            cur.execute("SELECT call_attempts FROM orders WHERE woo_id=?", (o.get("woo_id"),))
+            prev = cur.fetchone()
+            if prev is not None:
+                call_attempts = prev[0]
+        except Exception:
+            call_attempts = None
+
     cur.execute("""
     INSERT OR REPLACE INTO orders
-    (woo_id, created_at, first_name, last_name, customer_name, phone, city, city_ref, address, warehouse_ref, product, amount, amount_auto, status, delivery_service, shipping_method, payment_state, payment_method, comment)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (woo_id, created_at, first_name, last_name, customer_name, phone, city, city_ref, address, warehouse_ref, product, amount, amount_auto, status, delivery_service, shipping_method, payment_state, payment_method, comment, call_attempts)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         o.get("woo_id"),
         o.get("created_at"),
@@ -187,7 +337,8 @@ def create_or_update_order(o):
         o.get("shipping_method"),
         o.get("payment_state"),
         o.get("payment_method"),
-        o.get("comment")
+        o.get("comment"),
+        call_attempts,
     ))
 
     items = o.get("items")
@@ -251,11 +402,68 @@ def _build_created_at_range_where(from_date: Optional[str], to_date: Optional[st
     return where_sql, params
 
 
-def count_orders_filtered(from_date: Optional[str] = None, to_date: Optional[str] = None) -> int:
+def _build_search_where(q: Optional[str]):
+    qs = (q or "").strip()
+    if not qs:
+        return "", []
+
+    like = f"%{qs}%"
+    sql = (
+        "("
+        " cast(woo_id as text) like ?"
+        " OR lower(coalesce(customer_name,'')) like lower(?)"
+        " OR lower(coalesce(first_name,'')) like lower(?)"
+        " OR lower(coalesce(last_name,'')) like lower(?)"
+        " OR coalesce(phone,'') like ?"
+        " OR lower(coalesce(city,'')) like lower(?)"
+        " OR lower(coalesce(address,'')) like lower(?)"
+        " OR lower(coalesce(product,'')) like lower(?)"
+        " OR lower(coalesce(comment,'')) like lower(?)"
+        " OR coalesce(ttn_number,'') like ?"
+        " OR exists(SELECT 1 FROM order_items oi WHERE oi.woo_id = orders.woo_id AND lower(coalesce(oi.name,'')) like lower(?))"
+        ")"
+    )
+    params = [
+        like,
+        like,
+        like,
+        like,
+        like,
+        like,
+        like,
+        like,
+        like,
+        like,
+        like,
+    ]
+    return sql, params
+
+
+def count_orders_filtered(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    q: Optional[str] = None,
+    trash: bool = False,
+) -> int:
     conn = get_conn()
     cur = conn.cursor()
 
     where_sql, params = _build_created_at_range_where(from_date, to_date)
+    q_sql, q_params = _build_search_where(q)
+
+    if q_sql:
+        if where_sql:
+            where_sql = where_sql + " AND " + q_sql
+        else:
+            where_sql = " WHERE " + q_sql
+        params = list(params) + list(q_params)
+
+    del_sql = " is_deleted=1 " if trash else " coalesce(is_deleted,0)=0 "
+    if where_sql:
+        where_sql = where_sql + " AND " + del_sql
+    else:
+        where_sql = " WHERE " + del_sql
+
     cur.execute("SELECT COUNT(*) FROM orders" + where_sql, params)
     row = cur.fetchone()
     conn.close()
@@ -265,6 +473,8 @@ def count_orders_filtered(from_date: Optional[str] = None, to_date: Optional[str
 def list_orders_filtered(
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
+    q: Optional[str] = None,
+    trash: bool = False,
     limit: int = 100,
     offset: int = 0,
 ):
@@ -272,6 +482,21 @@ def list_orders_filtered(
     cur = conn.cursor()
 
     where_sql, params = _build_created_at_range_where(from_date, to_date)
+    q_sql, q_params = _build_search_where(q)
+
+    if q_sql:
+        if where_sql:
+            where_sql = where_sql + " AND " + q_sql
+        else:
+            where_sql = " WHERE " + q_sql
+        params = list(params) + list(q_params)
+
+    del_sql = " is_deleted=1 " if trash else " coalesce(is_deleted,0)=0 "
+    if where_sql:
+        where_sql = where_sql + " AND " + del_sql
+    else:
+        where_sql = " WHERE " + del_sql
+
     sql = (
         "SELECT woo_id, created_at, customer_name, phone, status, payment_state, payment_method, amount, product, "
         "       delivery_service, shipping_method, city_ref, warehouse_ref, comment, "
@@ -313,6 +538,31 @@ def get_order_items_for_orders(woo_ids):
     rows = cur.fetchall()
     conn.close()
     return rows
+
+
+def get_existing_woo_ids(woo_ids) -> set[int]:
+    ids = [int(x) for x in (woo_ids or []) if str(x).strip()]
+    if not ids:
+        return set()
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    placeholders = ",".join(["?"] * len(ids))
+    cur.execute(
+        f"SELECT woo_id FROM orders WHERE woo_id IN ({placeholders})",
+        tuple(ids),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    res: set[int] = set()
+    for r in rows:
+        try:
+            res.add(int(r[0]))
+        except Exception:
+            continue
+    return res
 
 # ----------------------------
 
@@ -363,6 +613,7 @@ def update_status_bulk(woo_ids: list[int], status: str):
     cur = conn.cursor()
 
     placeholders = ",".join(["?"] * len(ids))
+
     sql = f"UPDATE orders SET status=? WHERE woo_id IN ({placeholders})"
     cur.execute(sql, (status, *ids))
 
@@ -442,6 +693,7 @@ def update_order_fields(woo_id, fields: dict):
         "ttn_number",
         "ttn_error",
         "ttn_created_at",
+        "call_attempts",
     }
 
     updates = []

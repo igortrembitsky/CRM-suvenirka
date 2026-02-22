@@ -20,6 +20,7 @@ from functools import wraps
 import db
 import threading
 import time
+import datetime
 import os
 import requests
 import woo_api
@@ -146,6 +147,8 @@ NP_SENDER_PHONE = os.environ.get("NP_SENDER_PHONE") or (getattr(_config, "NP_SEN
 NP_CARGO_DESCRIPTION = os.environ.get("NP_CARGO_DESCRIPTION") or (getattr(_config, "NP_CARGO_DESCRIPTION", None) if _config else None) or "Сувенірна продукція"
 
 _NP_CACHE = {}
+
+_NP_RESTORE_CACHE = {}
 
 # ============================
 # CRM → WOO STATUS MAP
@@ -322,12 +325,15 @@ def infer_payment_state(order: dict):
 @app.get("/assets/<path:filename>")
 def asset_file(filename: str):
     # serve only explicitly allowed icon files from project root
-    allowed = {"np.png", "up.png", "liq.png", "card.png", "notpay.png", "go.png", "logo.png"}
-    if filename not in allowed:
+    allowed = {"np.png", "up.png", "liq.png", "card.png", "notpay.png", "go.png", "logo.png", "viber.png"}
+    fn = os.path.basename(filename or "")
+    fn_low = fn.lower()
+    if fn_low not in allowed:
         return abort(404)
     root = os.path.abspath(os.path.dirname(__file__))
     images_dir = os.path.join(root, "images")
-    return send_from_directory(images_dir, filename)
+    # Prefer lower-cased filename to keep URLs stable on case-sensitive FS
+    return send_from_directory(images_dir, fn_low)
 _WOO_CACHE = {}
 
 
@@ -371,9 +377,17 @@ def _np_build_internal_number(items: list[dict]):
         name = (it.get("name") or "").strip()
         if not name:
             continue
+        qty = it.get("qty") or 1
+        try:
+            qty = int(qty)
+        except Exception:
+            qty = 1
         words = [w for w in name.replace(";", " ").replace(",", " ").split() if w]
         if words:
-            parts.append(words[0])
+            first_word = words[0]
+            if qty > 1:
+                first_word = f"{first_word} х {qty}"
+            parts.append(first_word)
     return ", ".join(parts)[:50]
 
 
@@ -421,12 +435,19 @@ def _np_guess_warehouse_query(address_text: str):
     low = s.lower()
 
     # Prefer explicit department/postomat number to avoid confusing it with house numbers.
-    m = re.search(r"(відділення|отделение|поштомат|postomat)\s*№?\s*(\d{1,5})", low)
+    m = re.search(r"(відділення|отделение|поштомат|postomat|пункт\s+видачі|пункт\s+выдачи)\s*№?\s*(\d{1,5})", low)
     if m:
         return m.group(2)
     m = re.search(r"№\s*(\d{1,5})", low)
-    if m and ("відді" in low or "отдел" in low or "поштомат" in low or "postomat" in low):
+    if m and ("відді" in low or "отдел" in low or "поштомат" in low or "postomat" in low or "пункт видач" in low or "пункт выдач" in low):
         return m.group(1)
+
+    # Pickup point strings may not contain a number, but often contain a colon before the actual address.
+    # Example: "Пункт приймання-видачі ...: вул. Незалежності, 92а".
+    if ":" in s:
+        tail = s.split(":", 1)[1].strip()
+        if tail:
+            return tail[:30]
 
     # Fallback: use first part of description (do not guess by arbitrary digits to avoid house number).
     return s[:30]
@@ -582,6 +603,35 @@ def np_create_ttn_for_order(woo_id: int):
 
     city_ref = _np_safe_strip(order.get("city_ref"))
     wh_ref = _np_safe_strip(order.get("warehouse_ref"))
+    if not city_ref or not wh_ref:
+        updated = {}
+
+        if not city_ref:
+            city_name = _np_safe_strip(order.get("city"))
+            if city_name:
+                try:
+                    city_ref = _np_safe_strip(_np_resolve_city_ref_by_name(city_name))
+                except Exception:
+                    city_ref = ""
+            if city_ref:
+                updated["city_ref"] = city_ref
+
+        if not wh_ref and city_ref:
+            addr_text = _np_safe_strip(order.get("address"))
+            if addr_text:
+                try:
+                    wh_ref = _np_safe_strip(_np_resolve_warehouse_ref(city_ref, addr_text))
+                except Exception:
+                    wh_ref = ""
+            if wh_ref:
+                updated["warehouse_ref"] = wh_ref
+
+        if updated:
+            try:
+                db.update_order_fields(int(woo_id), updated)
+            except Exception:
+                pass
+
     if not city_ref or not wh_ref:
         raise RuntimeError("NP: missing city_ref/warehouse_ref")
 
@@ -743,6 +793,551 @@ def _cache_get(key):
 
 def _cache_set(key, value):
     _NP_CACHE[key] = (time.time(), value)
+
+
+def _restore_cache_get(key, ttl_sec: int = 180):
+    try:
+        v = _NP_RESTORE_CACHE.get(key)
+    except Exception:
+        v = None
+    if not v:
+        return None
+    ts, value = v
+    if time.time() - ts > float(ttl_sec or 0):
+        return None
+    return value
+
+
+def _restore_cache_set(key, value):
+    _NP_RESTORE_CACHE[key] = (time.time(), value)
+
+
+def _np_track_color_from_status_text(status_text: str):
+    s = (status_text or "").strip().lower()
+    if not s:
+        return "#9e9e9e"
+
+    # Deleted in NP cabinet
+    if ("видален" in s) or ("удален" in s):
+        return "#6d4c41"
+
+    # Delivered / received
+    if ("отрим" in s) or ("получ" in s) or ("вруч" in s):
+        return "#2e7d32"
+
+    # Arrived to department / pickup point
+    if ("прибув" in s) or ("прибыло" in s) or ("відділен" in s) or ("отделен" in s) or ("пункт" in s):
+        return "#fb8c00"
+
+    # In transit
+    if ("дороз" in s) or ("в пути" in s) or ("транз" in s) or ("переміщ" in s) or ("перемещ" in s):
+        return "#1976d2"
+
+    # Problems / returns / cancelled
+    if ("повер" in s) or ("возв" in s) or ("відмов" in s) or ("отказ" in s) or ("не вдалося" in s) or ("не удалось" in s) or ("втрач" in s) or ("утер" in s):
+        return "#d32f2f"
+
+    return "#9e9e9e"
+
+
+def _np_track_color_from_status_code(status_code):
+    try:
+        sc = int(status_code)
+    except Exception:
+        return ""
+
+    # Best-effort mapping to match NP cabinet colors.
+    # Delivered
+    if sc in (9, 11):
+        return "#2e7d32"
+
+    # Arrived to recipient department / pickup point
+    if sc in (7, 8, 10):
+        return "#fb8c00"
+
+    # Created / accepted (just created TTN)
+    if sc in (1,):
+        return "#9e9e9e"
+
+    # In transit
+    if sc in (2, 3, 4, 5, 6):
+        return "#1976d2"
+
+    # Problems / returns / cancelled / storage expired etc.
+    if sc in (102, 103, 104, 105, 106, 107, 108):
+        return "#d32f2f"
+
+    return "#9e9e9e"
+
+
+def _np_extract_ttn_candidates_from_obj(obj, out: list[str], limit: int = 2000):
+    if len(out) >= limit:
+        return
+    if obj is None:
+        return
+    if isinstance(obj, (str, int, float, bool)):
+        s = str(obj).strip()
+        if s:
+            out.append(s)
+        return
+    if isinstance(obj, dict):
+        for k, v in list(obj.items()):
+            if len(out) >= limit:
+                return
+            _np_extract_ttn_candidates_from_obj(v, out, limit=limit)
+        return
+    if isinstance(obj, (list, tuple, set)):
+        for it in list(obj):
+            if len(out) >= limit:
+                return
+            _np_extract_ttn_candidates_from_obj(it, out, limit=limit)
+        return
+
+
+def _np_extract_ttn_from_woo_order(order_json: dict):
+    candidates: list[str] = []
+    _np_extract_ttn_candidates_from_obj(order_json, candidates, limit=2000)
+    text = "\n".join(candidates)
+    matches = re.findall(r"\b\d{14}\b", text)
+    if not matches:
+        return ""
+    for m in matches:
+        if m.startswith("204") or m.startswith("590") or m.startswith("050"):
+            return m
+    return matches[0]
+
+
+def _np_doclist_extract_phone(obj) -> str:
+    if obj is None:
+        return ""
+    if isinstance(obj, (str, int, float, bool)):
+        s = str(obj)
+        digits = "".join(ch for ch in s if ch.isdigit())
+        if len(digits) >= 10:
+            return digits
+        return ""
+    if isinstance(obj, dict):
+        for k in ("PhoneRecipient", "RecipientPhone", "RecipientsPhone", "Phone"):  # best-effort
+            try:
+                v = obj.get(k)
+            except Exception:
+                v = None
+            if v:
+                got = _np_doclist_extract_phone(v)
+                if got:
+                    return got
+        for _, v in list(obj.items()):
+            got = _np_doclist_extract_phone(v)
+            if got:
+                return got
+        return ""
+    if isinstance(obj, (list, tuple, set)):
+        for it in list(obj):
+            got = _np_doclist_extract_phone(it)
+            if got:
+                return got
+    return ""
+
+
+def _np_doclist_extract_ttn(obj) -> str:
+    if obj is None:
+        return ""
+    if isinstance(obj, (str, int, float, bool)):
+        s = str(obj)
+        m = re.search(r"\b\d{14}\b", s)
+        return m.group(0) if m else ""
+    if isinstance(obj, dict):
+        for k in ("IntDocNumber", "Number", "DocumentNumber"):
+            try:
+                v = obj.get(k)
+            except Exception:
+                v = None
+            if v:
+                got = _np_doclist_extract_ttn(v)
+                if got:
+                    return got
+        for _, v in list(obj.items()):
+            got = _np_doclist_extract_ttn(v)
+            if got:
+                return got
+        return ""
+    if isinstance(obj, (list, tuple, set)):
+        for it in list(obj):
+            got = _np_doclist_extract_ttn(it)
+            if got:
+                return got
+    return ""
+
+
+def _np_fetch_document_list(phone_norm: str, date_from: str, date_to: str, max_pages: int = 3, limit: int = 100):
+    p = _np_normalize_phone(phone_norm)
+    if not p:
+        return []
+
+    cache_key = ("doclist", p, str(date_from or ""), str(date_to or ""), int(max_pages or 0), int(limit or 0))
+    cached = _restore_cache_get(cache_key, ttl_sec=180)
+    if cached is not None:
+        return cached
+
+    if not NP_API_KEY:
+        return []
+
+    results = []
+    pages = max(1, int(max_pages or 1))
+    per_page = max(20, min(100, int(limit or 100)))
+
+    for page in range(1, pages + 1):
+        payload = {
+            "apiKey": NP_API_KEY,
+            "modelName": "InternetDocument",
+            "calledMethod": "getDocumentList",
+            "methodProperties": {
+                "DateTimeFrom": date_from,
+                "DateTimeTo": date_to,
+                "Page": page,
+                "Limit": per_page,
+                "GetFullList": 1,
+                "PhoneRecipient": p,
+            },
+        }
+
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                data = _np_post(payload)
+            except Exception:
+                data = {"success": False, "errors": ["request_failed"]}
+
+            if data.get("success"):
+                rows = data.get("data") or []
+                if isinstance(rows, list):
+                    results.extend(rows)
+                break
+
+            errs = data.get("errors") or []
+            err_text = " ".join([str(x) for x in (errs if isinstance(errs, list) else [errs])]).lower()
+            if ("too many requests" in err_text) or ("to many requests" in err_text):
+                if attempt >= 5:
+                    break
+                time.sleep(min(8.0, (0.6 * (2 ** (attempt - 1))) + 0.2))
+                continue
+            break
+
+        time.sleep(0.2)
+
+    _restore_cache_set(cache_key, results)
+    return results
+
+
+@app.post("/np/restore_ttn_from_np")
+@login_required
+def np_restore_ttn_from_np():
+    if not NP_API_KEY:
+        return jsonify({"error": "NP_API_KEY is not configured"}), 400
+
+    try:
+        payload_in = request.get_json(silent=True) or {}
+    except Exception:
+        payload_in = {}
+
+    try:
+        limit = int(payload_in.get("limit") or 50)
+    except Exception:
+        limit = 50
+    try:
+        days = int(payload_in.get("days") or 60)
+    except Exception:
+        days = 60
+    try:
+        max_pages = int(payload_in.get("max_pages") or 5)
+    except Exception:
+        max_pages = 5
+
+    limit = max(1, min(1000, limit))
+    days = max(1, min(180, days))
+    max_pages = max(1, min(20, max_pages))
+
+    now = datetime.datetime.now()
+    dt_from = now - datetime.timedelta(days=days)
+    date_from = dt_from.strftime("%d.%m.%Y")
+    date_to = now.strftime("%d.%m.%Y")
+
+    ids = []
+    try:
+        ids = db.list_np_orders_missing_ttn(limit=limit)
+    except Exception:
+        ids = []
+
+    updated = 0
+    scanned = 0
+    per_order_errors = {}
+
+    # Group by phone to reduce NP requests and improve matching.
+    orders_by_phone: dict[str, list[dict]] = {}
+    for wid in ids:
+        scanned += 1
+        try:
+            row = db.get_order_by_woo_id(int(wid))
+            if not row:
+                continue
+            o = dict(row)
+            if str(o.get("ttn_number") or "").strip():
+                continue
+            phone_norm = _np_normalize_phone(o.get("phone"))
+            if not phone_norm:
+                continue
+
+            try:
+                amount = float(o.get("amount") or 0)
+            except Exception:
+                amount = 0.0
+
+            first_name = _np_safe_strip(o.get("first_name"))
+            last_name = _np_safe_strip(o.get("last_name"))
+            cust = _np_safe_strip(o.get("customer_name"))
+            name_text = " ".join([x for x in [first_name, last_name, cust] if x]).strip().lower()
+
+            orders_by_phone.setdefault(phone_norm, []).append({
+                "woo_id": int(wid),
+                "amount": amount,
+                "name_text": name_text,
+            })
+        except Exception as e:
+            per_order_errors[str(wid)] = (str(e) or "")[:200]
+            continue
+
+    for phone_norm, lst in orders_by_phone.items():
+        try:
+            docs = _np_fetch_document_list(phone_norm, date_from, date_to, max_pages=max_pages, limit=100)
+        except Exception:
+            docs = []
+
+        # Pre-extract doc candidates
+        doc_candidates = []
+        for d in (docs or []):
+            if not isinstance(d, dict):
+                continue
+            ttn = _np_doclist_extract_ttn(d)
+            if not ttn:
+                continue
+            doc_phone = _np_normalize_phone(_np_doclist_extract_phone(d))
+            if doc_phone and doc_phone != phone_norm:
+                continue
+
+            try:
+                cost_raw = d.get("Cost")
+            except Exception:
+                cost_raw = None
+            try:
+                cost = float(str(cost_raw).replace(",", ".")) if cost_raw is not None and str(cost_raw).strip() != "" else None
+            except Exception:
+                cost = None
+
+            # Some fields may contain recipient name
+            name_bits = []
+            for k in ("RecipientContactPerson", "RecipientName", "ContactRecipient", "Recipient"):  # best-effort
+                try:
+                    v = d.get(k)
+                except Exception:
+                    v = None
+                if v:
+                    name_bits.append(str(v))
+            doc_name = " ".join(name_bits).strip().lower()
+
+            doc_candidates.append({"ttn": ttn, "cost": cost, "name": doc_name})
+
+        for o in lst:
+            wid = int(o.get("woo_id"))
+            if not wid:
+                continue
+            best_ttn = ""
+            best_score = -1
+            for dc in doc_candidates:
+                score = 0
+                # Cost match is the strongest signal
+                try:
+                    if dc.get("cost") is not None and o.get("amount") is not None:
+                        if abs(float(dc.get("cost")) - float(o.get("amount"))) <= 1.0:
+                            score += 3
+                except Exception:
+                    pass
+                # Name match
+                try:
+                    nm = str(o.get("name_text") or "")
+                    dn = str(dc.get("name") or "")
+                    if nm and dn and (nm.split()[0] in dn):
+                        score += 1
+                except Exception:
+                    pass
+                # Any candidate has at least score 0
+                if score > best_score:
+                    best_score = score
+                    best_ttn = str(dc.get("ttn") or "")
+
+            if best_ttn:
+                try:
+                    db.update_order_fields(
+                        int(wid),
+                        {"ttn_number": best_ttn, "ttn_error": "", "ttn_created_at": time.strftime("%Y-%m-%d %H:%M:%S")},
+                    )
+                    updated += 1
+                except Exception as e:
+                    per_order_errors[str(wid)] = (str(e) or "")[:200]
+                    continue
+
+    return jsonify({
+        "ok": True,
+        "days": days,
+        "date_from": date_from,
+        "date_to": date_to,
+        "limit": limit,
+        "scanned": scanned,
+        "updated": updated,
+        "errors": per_order_errors,
+    })
+
+
+def _np_fetch_tracking_statuses(ttns: list[str]) -> dict:
+    clean = []
+    for x in (ttns or []):
+        s = str(x or "").strip()
+        if not s:
+            continue
+        digits = "".join(ch for ch in s if ch.isdigit())
+        if digits:
+            clean.append(digits)
+
+    uniq = []
+    seen = set()
+    for t in clean:
+        if t in seen:
+            continue
+        seen.add(t)
+        uniq.append(t)
+        if len(uniq) >= 200:
+            break
+
+    if not uniq:
+        return {}
+
+    cache_key = ("track", tuple(uniq))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    if not NP_API_KEY:
+        return {}
+
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": "TrackingDocument",
+        "calledMethod": "getStatusDocuments",
+        "methodProperties": {
+            "Documents": [{"DocumentNumber": t, "Phone": ""} for t in uniq],
+        },
+    }
+
+    items = {}
+    try:
+        data = _np_post(payload)
+        if data.get("success"):
+            for row in (data.get("data") or []):
+                if not isinstance(row, dict):
+                    continue
+                ttn = (row.get("Number") or row.get("DocumentNumber") or "").strip()
+                if not ttn:
+                    continue
+                st = (row.get("Status") or "").strip()
+                sc = row.get("StatusCode")
+                color = _np_track_color_from_status_code(sc) or _np_track_color_from_status_text(st)
+                items[ttn] = {
+                    "status": st,
+                    "color": color,
+                }
+    except Exception:
+        items = {}
+
+    _cache_set(cache_key, items)
+    return items
+
+
+@app.post("/np/ttn_statuses")
+@login_required
+def np_ttn_statuses():
+    try:
+        payload_in = request.get_json(silent=True) or {}
+    except Exception:
+        payload_in = {}
+
+    ttns = payload_in.get("ttns") or []
+    if not isinstance(ttns, list):
+        ttns = []
+
+    # sanitize
+    clean = []
+    for x in ttns:
+        s = str(x or "").strip()
+        if not s:
+            continue
+        digits = "".join(ch for ch in s if ch.isdigit())
+        if digits:
+            clean.append(digits)
+
+    # De-duplicate and cap to avoid abuse
+    uniq = []
+    seen = set()
+    for t in clean:
+        if t in seen:
+            continue
+        seen.add(t)
+        uniq.append(t)
+        if len(uniq) >= 200:
+            break
+
+    if not uniq:
+        return jsonify({"items": {}})
+
+    cache_key = ("track", tuple(uniq))
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return jsonify({"items": cached})
+
+    if not NP_API_KEY:
+        return jsonify({"items": {}})
+
+    payload = {
+        "apiKey": NP_API_KEY,
+        "modelName": "TrackingDocument",
+        "calledMethod": "getStatusDocuments",
+        "methodProperties": {
+            "Documents": [{"DocumentNumber": t, "Phone": ""} for t in uniq],
+        },
+    }
+
+    items = {}
+    try:
+        data = _np_post(payload)
+        if data.get("success"):
+            for row in (data.get("data") or []):
+                if not isinstance(row, dict):
+                    continue
+                ttn = (row.get("Number") or row.get("DocumentNumber") or "").strip()
+                if not ttn:
+                    continue
+                st = (row.get("Status") or "").strip()
+                sc = row.get("StatusCode")
+                color = _np_track_color_from_status_code(sc) or _np_track_color_from_status_text(st)
+                items[ttn] = {
+                    "status": st,
+                    "color": color,
+                }
+    except Exception:
+        items = {}
+
+    # short cache: reduce NP load
+    _cache_set(cache_key, items)
+    return jsonify({"items": items})
 
 
 def _woo_cache_get(key):
@@ -1005,6 +1600,8 @@ def format_products_for_table(items, product_fallback: str):
 def index():
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
+    q = (request.args.get("q") or "").strip()
+    trash = (request.args.get("trash") or "").strip() == "1"
 
     auto_sync_latest = (os.environ.get("CRM_AUTO_SYNC_LATEST") or "0").strip() == "1"
     if auto_sync_latest and (not date_from and not date_to):
@@ -1030,7 +1627,7 @@ def index():
     per_page = 100
     offset = (page - 1) * per_page
 
-    total_count = db.count_orders_filtered(date_from or None, date_to or None)
+    total_count = db.count_orders_filtered(date_from or None, date_to or None, q=q or None, trash=trash)
     total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
     if page > total_pages:
         page = total_pages
@@ -1039,6 +1636,8 @@ def index():
     raw_orders = db.list_orders_filtered(
         date_from or None,
         date_to or None,
+        q=q or None,
+        trash=trash,
         limit=per_page,
         offset=offset,
     )
@@ -1092,24 +1691,86 @@ def index():
         )
         orders.append(order)
 
+    # Count products for statuses Confirmed + TTN on current page
+    product_counts = {}
+    for o in orders:
+        try:
+            sc = str(o.get("status_code") or "")
+            if sc not in ("confirmed", "ttn"):
+                continue
+            ds = str(o.get("delivery_service") or "").strip().lower()
+            if ds == "ukr":
+                continue
+            wid = o.get("woo_id")
+            for it in (items_by_woo.get(wid, []) or []):
+                name = str((it or {}).get("name") or "").strip()
+                if not name:
+                    continue
+                try:
+                    qty = int((it or {}).get("qty") or 0)
+                except Exception:
+                    qty = 1
+                if qty <= 0:
+                    qty = 1
+                product_counts[name] = int(product_counts.get(name, 0) or 0) + qty
+        except Exception:
+            continue
+
+    ttns_for_np = []
+    for o in orders:
+        try:
+            if str(o.get("delivery_service") or "").strip().lower() != "np":
+                continue
+            ttn = str(o.get("ttn_number") or "").strip()
+            if not ttn:
+                continue
+            ttns_for_np.append(ttn)
+        except Exception:
+            continue
+
+    np_items = _np_fetch_tracking_statuses(ttns_for_np)
+    for o in orders:
+        try:
+            ttn = str(o.get("ttn_number") or "").strip()
+            if not ttn:
+                continue
+            info = np_items.get(ttn) or None
+            if not info:
+                continue
+            o["np_status"] = info.get("status")
+            o["np_color"] = info.get("color")
+        except Exception:
+            continue
+
     return render_template(
         "index.html",
         orders=orders,
         status_badges=STATUS_BADGES,
         date_from=date_from,
         date_to=date_to,
+        q=q,
+        trash=trash,
+        product_counts=product_counts,
         page=page,
         total_pages=total_pages,
         total_count=total_count,
         last_sync_at=_LAST_SYNC_AT,
         last_sync_error=_LAST_SYNC_ERROR,
         last_status_sync_at=_LAST_STATUS_SYNC_AT,
-        last_status_sync_error=_LAST_STATUS_SYNC_ERROR,
+        last_status_sync_error=_LAST_SYNC_ERROR,
     )
 
 
 @app.post("/order/<int:woo_id>/status")
 def update_order_status_inline(woo_id: int):
+    prev_status_code = None
+    try:
+        prev_row = db.get_order_by_woo_id(int(woo_id))
+        if prev_row:
+            prev_status_code = normalize_status(dict(prev_row).get("status"))
+    except Exception:
+        prev_status_code = None
+
     try:
         payload = request.get_json(silent=True) or {}
     except Exception:
@@ -1130,8 +1791,8 @@ def update_order_status_inline(woo_id: int):
     ttn_error = ""
     if status_code == "ttn":
         try:
-            # clear previous error before attempt
-            db.update_order_fields(int(woo_id), {"ttn_error": ""})
+            # Force re-create TTN even if old one exists
+            db.update_order_fields(int(woo_id), {"ttn_number": "", "ttn_error": "", "ttn_created_at": ""})
             res = np_create_ttn_for_order(int(woo_id))
             ttn_number = res.get("ttn_number")
         except Exception as e:
@@ -1194,7 +1855,8 @@ def update_orders_status_bulk():
     if status_code == "ttn":
         for wid in ids:
             try:
-                db.update_order_fields(int(wid), {"ttn_error": ""})
+                # Force re-create TTN even if old one exists
+                db.update_order_fields(int(wid), {"ttn_number": "", "ttn_error": "", "ttn_created_at": ""})
                 np_create_ttn_for_order(int(wid))
             except Exception as e:
                 msg = str(e)
@@ -1223,7 +1885,82 @@ def update_orders_status_bulk():
     except Exception as e:
         woo_error = (str(e) or "")[:500]
 
-    return jsonify({"updated": updated, "ttn_errors": ttn_errors, "woo_ok": woo_ok, "woo_error": woo_error})
+    return jsonify({"updated": ids, "woo_synced": woo_ok, "woo_error": woo_error})
+
+
+@app.post("/orders/delete_bulk")
+def delete_orders_bulk():
+    try:
+        payload = request.get_json(silent=True) or {}
+    except Exception:
+        payload = {}
+
+    raw_ids = payload.get("woo_ids") or []
+    try:
+        ids = [int(x) for x in raw_ids if str(x).strip()]
+    except Exception:
+        return jsonify({"error": "bad woo_ids"}), 400
+
+    ids = [x for x in ids if x > 0]
+    if not ids:
+        return jsonify({"deleted": []})
+
+    try:
+        db.trash_orders_bulk(ids)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"deleted": ids})
+
+
+@app.post("/orders/restore_bulk")
+def restore_orders_bulk():
+    try:
+        payload = request.get_json(silent=True) or {}
+    except Exception:
+        payload = {}
+
+    raw_ids = payload.get("woo_ids") or []
+    try:
+        ids = [int(x) for x in raw_ids if str(x).strip()]
+    except Exception:
+        return jsonify({"error": "bad woo_ids"}), 400
+
+    ids = [x for x in ids if x > 0]
+    if not ids:
+        return jsonify({"restored": []})
+
+    try:
+        db.restore_orders_bulk(ids)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"restored": ids})
+
+
+@app.post("/orders/purge_bulk")
+def purge_orders_bulk():
+    try:
+        payload = request.get_json(silent=True) or {}
+    except Exception:
+        payload = {}
+
+    raw_ids = payload.get("woo_ids") or []
+    try:
+        ids = [int(x) for x in raw_ids if str(x).strip()]
+    except Exception:
+        return jsonify({"error": "bad woo_ids"}), 400
+
+    ids = [x for x in ids if x > 0]
+    if not ids:
+        return jsonify({"purged": []})
+
+    try:
+        db.purge_orders_bulk(ids)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"purged": ids})
 
 
 @app.post("/sync")
@@ -1427,6 +2164,21 @@ def np_cities():
 
     _cache_set(cache_key, res)
     return jsonify(res)
+
+
+@app.post("/order/<int:woo_id>/call_attempt")
+@login_required
+def order_call_attempt(woo_id: int):
+    row = db.get_order_by_woo_id(int(woo_id))
+    if not row:
+        return jsonify({"error": "not_found"}), 404
+
+    try:
+        cnt = db.increment_call_attempts(int(woo_id))
+    except Exception:
+        return jsonify({"error": "db_error"}), 500
+
+    return jsonify({"call_attempts": int(cnt)})
 
 
 @app.get("/np/debug/city_warehouse_refs")
@@ -1663,6 +2415,12 @@ def order_card(woo_id: int):
         return "Заказ не найден", 404
 
     if request.method == "POST":
+        prev_status_code = None
+        try:
+            prev_status_code = normalize_status(dict(row).get("status"))
+        except Exception:
+            prev_status_code = None
+
         close_after_save = (request.args.get("close") or "").strip() == "1"
 
         first_name = (request.form.get("first_name") or "").strip()
@@ -1729,9 +2487,7 @@ def order_card(woo_id: int):
         amount = amount_calc
 
         customer_name = f"{first_name} {last_name}".strip()
-        db.update_order_fields(
-            woo_id,
-            {
+        update_payload = {
                 "first_name": first_name,
                 "last_name": last_name,
                 "customer_name": customer_name,
@@ -1747,13 +2503,15 @@ def order_card(woo_id: int):
                 "product": product_summary,
                 "amount": amount,
                 "amount_auto": 1,
-            },
-        )
+        }
+
+        db.update_order_fields(woo_id, update_payload)
         db.replace_order_items(woo_id, items)
 
         if status_code == "ttn":
             try:
-                db.update_order_fields(int(woo_id), {"ttn_error": ""})
+                # Force re-create TTN even if old one exists
+                db.update_order_fields(int(woo_id), {"ttn_number": "", "ttn_error": "", "ttn_created_at": ""})
                 np_create_ttn_for_order(int(woo_id))
             except Exception as e:
                 try:
@@ -1854,8 +2612,20 @@ def order_card(woo_id: int):
 
 @app.route("/order/<int:woo_id>/delete", methods=["POST"])
 def delete_order(woo_id: int):
-    db.delete_order(woo_id)
+    db.trash_order(woo_id)
     return redirect(url_for("index"))
+
+
+@app.route("/order/<int:woo_id>/restore", methods=["POST"])
+def restore_order(woo_id: int):
+    db.restore_order(woo_id)
+    return redirect(url_for("index", trash=1))
+
+
+@app.route("/order/<int:woo_id>/purge", methods=["POST"])
+def purge_order(woo_id: int):
+    db.delete_order(woo_id)
+    return redirect(url_for("index", trash=1))
 
 
 if __name__ == "__main__":

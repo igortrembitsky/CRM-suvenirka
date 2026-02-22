@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -14,9 +14,217 @@ h1{
     text-align:center;
 }
 
+.topbar-wrap{
+    max-width: 100%;
+    margin: 6px 0;
+    padding: 0 12px;
+    box-sizing: border-box;
+}
+
+.pagebar-wrap{
+    max-width: 100%;
+    margin: 12px 0;
+    padding: 0 12px;
+    box-sizing: border-box;
+}
+
+.pagebar-wrap input[type="number"]{
+    height:34px;
+    border:1px solid #cfcfcf;
+    border-radius:6px;
+    background:#fff;
+    font-size:14px;
+    color:#111;
+    box-sizing:border-box;
+    padding:6px 10px;
+}
+
+.search-form{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+}
+
+.search-form .icon-btn{
+    width:34px;
+    height:34px;
+    border:1px solid #cfcfcf;
+    background:#fff;
+    border-radius:6px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0;
+    line-height:1;
+}
+
+.search-form .icon-btn:hover{
+    background:#f3f3f3;
+}
+
+.search-form .icon-btn:disabled{
+    opacity:0.5;
+    cursor:default;
+}
+
+.search-form input[type="text"]{
+    width:260px;
+    max-width:45vw;
+    padding:7px 10px;
+    border:1px solid #cfcfcf;
+    border-radius:6px;
+    font-size:14px;
+}
+
+.topbar-wrap input[type="date"],
+.topbar-wrap select,
+.ctrl-btn{
+    height:34px;
+    border:1px solid #cfcfcf;
+    border-radius:6px;
+    background:#fff;
+    font-size:14px;
+    color:#555;
+    font-weight:400;
+    box-sizing:border-box;
+}
+
+.topbar-wrap input[type="date"]::placeholder{
+    color:#777;
+}
+
+.topbar-wrap input[type="date"]{
+    padding:6px 10px;
+}
+
+.topbar-wrap select{
+    padding:6px 10px;
+}
+
+select.badge{
+    appearance:none;
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    padding-right:26px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'><path fill='currentColor' d='M7 10l5 5l5-5z'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 8px center;
+    background-size:14px 14px;
+}
+
+select.badge.badge--new,
+select.badge.badge--not-paid,
+select.badge.badge--hold,
+select.badge.badge--ttn,
+select.badge.badge--confirmed,
+select.badge.badge--shipped,
+select.badge.badge--no-answer,
+select.badge.badge--canceled,
+select.badge.badge--bad,
+select.badge.badge--paid{
+    background: unset;
+    color: unset;
+}
+
+select.badge.badge--new{ background:#6cad17; color:#fff; }
+select.badge.badge--not-paid{ background:#d32f2f; color:#fff; }
+select.badge.badge--hold{ background:#cddc39; color:#1b1b1b; }
+select.badge.badge--ttn{ background:#fb8c00; color:#fff; }
+select.badge.badge--confirmed{ background:#1976d2; color:#fff; }
+select.badge.badge--shipped{ background:#7b1fa2; color:#fff; }
+select.badge.badge--no-answer{ background:#6d4c41; color:#fff; }
+select.badge.badge--canceled{ background:#616161; color:#fff; }
+select.badge.badge--bad{ background:#212121; color:#fff; }
+select.badge.badge--paid{ background:#2e7d32; color:#fff; }
+
+.ctrl-btn{
+    padding:0 12px;
+    cursor:pointer;
+}
+
+.ctrl-btn--primary{
+    background:#cfe8ff;
+    border-color:#b6dcff;
+    color:#2b4b66;
+}
+
+.ctrl-btn--primary:hover{
+    background:#c1e1ff;
+}
+
+.ctrl-btn--dark{
+    background:#e9ecef;
+    border-color:#d6dbe0;
+    color:#2f353b;
+}
+
+.ctrl-btn--dark:hover{
+    background:#dde2e7;
+}
+
+.ctrl-btn:hover{
+    background:#f3f3f3;
+}
+
+.ctrl-btn:disabled{
+    opacity:0.6;
+    cursor:default;
+}
+
+.topbar-summary{
+    margin-left:0;
+    display:flex;
+    align-items:center;
+    justify-content:flex-start;
+    gap:8px;
+    flex-wrap:wrap;
+    font-size:13px;
+    color:#333;
+}
+
+.topbar-summary .k{
+    color:#555;
+    font-weight:700;
+}
+
+.topbar-summary .v{
+    display:inline-flex;
+    gap:6px;
+    flex-wrap:wrap;
+}
+
+.topbar-summary-row{
+    margin-top:6px;
+    display:block;
+}
+
+.topbar-summary{
+    justify-self:start;
+    text-align:left;
+}
+
+@media (max-width: 980px){
+    .topbar-row{
+        grid-template-columns: 1fr;
+    }
+    .bulk-bar{
+        justify-self:start;
+        justify-content:flex-start;
+    }
+    .topbar-summary-row{
+        grid-template-columns: 1fr;
+    }
+    .topbar-summary{
+        justify-self:start;
+        text-align:left;
+    }
+}
+
 table{
     width:100%;
-    table-layout:auto;
+    table-layout:fixed;
     border-collapse: collapse;
     background:white;
 }
@@ -26,19 +234,74 @@ th,td{
     padding:8px;
     font-size:14px;
     white-space:nowrap;
-    text-align:center;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    text-align:left;
     vertical-align:middle;
+}
+
+@media (max-width: 700px){
+    #ordersTable th,
+    #ordersTable td{
+        text-align:left;
+    }
+    #ordersTable th.col-delete,
+    #ordersTable td.col-delete,
+    #ordersTable th.col-select,
+    #ordersTable td.col-select{
+        text-align:center;
+    }
+}
+
+.table-scroll-top{
+    width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    height:14px;
+    margin-bottom:6px;
+    -webkit-overflow-scrolling:touch;
+    background:transparent;
+}
+
+.table-scroll-top-inner{
+    height:1px;
 }
 
 .table-wrap{
     width:100%;
     overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+}
+
+th{
+    position:relative;
+}
+
+.th-resizer{
+    position:absolute;
+    top:0;
+    right:-2px;
+    width:8px;
+    height:100%;
+    cursor:col-resize;
+    user-select:none;
+    touch-action:none;
+}
+
+.th-resizer:hover{
+    background:rgba(255,255,255,0.15);
 }
 
 .col-delete{
-    width:34px;
+    width:96px;
     text-align:center;
     padding:0;
+}
+
+#ordersTable th.col-delete,
+#ordersTable td.col-delete{
+    overflow:visible;
+    text-overflow:clip;
 }
 
 .col-select{
@@ -58,8 +321,23 @@ th,td{
     padding:6px 8px;
 }
 
+.btn-restore{
+    border:0;
+    background:transparent;
+    color:#2e7d32;
+    font-size:18px;
+    font-weight:700;
+    cursor:pointer;
+    line-height:1;
+    padding:6px 8px;
+}
+
 .btn-delete:hover{
     color:#b71c1c;
+}
+
+.btn-restore:hover{
+    color:#1b5e20;
 }
 
 tr.order-row{ cursor:pointer; }
@@ -71,20 +349,20 @@ tr.order-row:hover{
 }
 
 .bulk-bar{
-    margin-left:auto;
     display:flex;
     align-items:center;
     justify-content:flex-end;
     gap:10px;
     flex-wrap:wrap;
+    padding-right:0;
 }
 
 .topbar-row{
-    display:flex;
+    display:grid;
+    grid-template-columns: 1fr auto;
     align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    flex-wrap:wrap;
+    column-gap:14px;
+    row-gap:10px;
 }
 
 .topbar-left{
@@ -92,6 +370,14 @@ tr.order-row:hover{
     align-items:center;
     gap:10px;
     flex-wrap:wrap;
+}
+
+.topbar-left{
+    justify-self:start;
+}
+
+.bulk-bar{
+    justify-self:end;
 }
 
 .topbar-info{
@@ -114,6 +400,7 @@ tr.order-row:hover{
 }
 
 .bulk-bar select{
+    font-weight:400;
     width:180px;
 }
 
@@ -122,14 +409,15 @@ tr.order-row:hover{
     color:#333;
 }
 
-.products-cell .cal-miy{ color:#2e7d32; font-weight:700; }
-.products-cell .cal-svit{ color:#1565c0; font-weight:700; }
-.products-cell .cal-dobriy{ color:#6d4c41; font-weight:700; }
-.products-cell .cal-razom{ color:#c2185b; font-weight:700; }
+.cal-miy{ color:#2e7d32; font-weight:700; }
+.cal-svit{ color:#1565c0; font-weight:700; }
+.cal-dobriy{ color:#6d4c41; font-weight:700; }
+.cal-razom{ color:#c2185b; font-weight:700; }
 
 .comment-cell{
     width:140px;
     max-width:140px;
+    min-width:0;
     white-space:nowrap;
     overflow:hidden;
     text-overflow:ellipsis;
@@ -174,7 +462,7 @@ th{
 
 /* Цвета статусов */
 
-.badge{display:inline-flex; align-items:center; justify-content:center; height:24px; min-width:120px; padding:0 10px; border-radius:999px; font-size:12px; font-weight:700; box-sizing:border-box; white-space:nowrap;}
+.badge{display:inline-flex; align-items:center; justify-content:center; height:24px; min-width:0; max-width:100%; padding:0 10px; border-radius:999px; font-size:12px; font-weight:700; box-sizing:border-box; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .badge--new{background:#6cad17; color:#fff;}
 .badge--not-paid{background:#d32f2f; color:#fff;}
 .badge--hold{background:#cddc39; color:#1b1b1b;}
@@ -190,6 +478,10 @@ th{
     appearance:none;
     -webkit-appearance:none;
     -moz-appearance:none;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    box-sizing:border-box;
     border:0;
     outline:none;
     cursor:pointer;
@@ -239,29 +531,19 @@ th{
 a{
     text-decoration:none;
     color:#0066cc;
-    font-weight:bold;
+    font-weight:400;
 }
 </style>
 </head>
 
 <body>
 
-<h1>CRM Suvenirka</h1>
-
-<div style="max-width: 100%; margin: 10px 0;">
+<div class="topbar-wrap">
     <div class="topbar-row">
         <div class="topbar-left">
-            <form method="post" action="/sync" id="syncOrdersForm" style="display:inline-block; margin:0;">
-                <button type="submit" id="syncOrdersBtn" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;">
-                    Обновить последние 100 ⤓
-                </button>
-                <span class="sync-spinner" id="syncOrdersSpinner"></span>
-            </form>
-
             <form method="post" action="/sync_range" class="date-filter" style="margin:0;">
-                <button type="submit"
-                        style="padding:8px 12px; border:0; background:#0f5ea8; color:white; cursor:pointer;">
-                    Показать
+                <button type="submit" class="ctrl-btn ctrl-btn--primary">
+                    Обновити
                 </button>
                 <label style="font-size:13px; color:#333;">С</label>
                 <input type="date" name="date_from" value="{{ date_from }}" />
@@ -269,30 +551,135 @@ a{
                 <input type="date" name="date_to" value="{{ date_to }}" />
             </form>
 
-            <form method="post" action="/sync_statuses" id="syncStatusesForm" style="display:inline-block;">
-                <button type="submit" id="syncStatusesBtn" style="padding:8px 12px; border:0; background:#7b1f2a; color:white; cursor:pointer;">
-                    Отправить на сайт ⤒
-                </button>
-                <span class="sync-spinner" id="syncStatusesSpinner"></span>
+            <form method="get" action="/" class="search-form" style="margin:0;">
+                <input type="hidden" name="date_from" value="{{ date_from }}" />
+                <input type="hidden" name="date_to" value="{{ date_to }}" />
+                {% if trash %}<input type="hidden" name="trash" value="1" />{% endif %}
+                <input type="text" name="q" value="{{ q or '' }}" placeholder="Пошук" />
+                <button class="icon-btn" type="submit" title="Пошук">⏎</button>
+                <button class="icon-btn" type="button" title="Очистити" onclick="(function(btn){var f=btn.closest('form'); if(!f) return; var q=f.querySelector('input[name=q]'); if(q) q.value=''; f.submit();})(this)">×</button>
             </form>
+
         </div>
+
+<style>
+.np-track{ display:inline-flex; align-items:center; gap:6px; min-width:140px; }
+.np-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; flex:0 0 10px; box-shadow:0 0 0 1px rgba(0,0,0,0.08) inset; }
+.np-text{ font-size:12px; color:#333; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px; display:inline-block; }
+.np-track--empty{ min-width:0; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const nodes = Array.from(document.querySelectorAll('.np-track[data-ttn]'));
+    if (!nodes.length) return;
+
+    // Apply server-provided color immediately (if present)
+    for (const n of nodes){
+        try{
+            const c = String(n.dataset.npColor || '').trim();
+            if (!c) continue;
+            const dot = n.querySelector('.np-dot');
+            if (dot) dot.style.background = c;
+        }catch(e){
+            // ignore
+        }
+    }
+
+    const ttns = [];
+    const byTtn = {};
+    for (const n of nodes){
+        const t = String(n.dataset.ttn || '').trim();
+        if (!t) continue;
+        if (!byTtn[t]) byTtn[t] = [];
+        byTtn[t].push(n);
+    }
+    for (const k of Object.keys(byTtn)) ttns.push(k);
+    if (!ttns.length) return;
+
+    fetch('/np/ttn_statuses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ttns }),
+    })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+        const items = (data && data.items) ? data.items : {};
+        for (const ttn of Object.keys(byTtn)){
+            const info = items[ttn] || null;
+            const color = info && info.color ? String(info.color) : '#9e9e9e';
+            const text = info && typeof info.status !== 'undefined' ? String(info.status || '') : '';
+            for (const el of byTtn[ttn]){
+                const dot = el.querySelector('.np-dot');
+                const txt = el.querySelector('.np-text');
+                if (dot) dot.style.background = color;
+                if (txt) txt.textContent = text || '—';
+                el.title = text || '';
+            }
+        }
+    })
+    .catch(() => {
+        for (const ttn of Object.keys(byTtn)){
+            for (const el of byTtn[ttn]){
+                const txt = el.querySelector('.np-text');
+                if (txt && !txt.textContent) txt.textContent = '—';
+            }
+        }
+    });
+});
+</script>
 
         <div class="bulk-bar">
             <span class="bulk-count" id="bulkCount">Выбрано: 0</span>
-            <select id="bulkStatusSelect">
-                <option value="">Изменить статусы</option>
-                {% for code, meta in status_badges.items() %}
-                    <option value="{{ code }}">{{ meta['label'] }}</option>
-                {% endfor %}
+            {% if trash %}
+                <a class="ctrl-btn" href="/?date_from={{ date_from }}&date_to={{ date_to }}&q={{ q or '' }}" style="display:inline-flex; align-items:center;">Все</a>
+            {% else %}
+                <a class="ctrl-btn" href="/?trash=1&date_from={{ date_from }}&date_to={{ date_to }}&q={{ q or '' }}" style="display:inline-flex; align-items:center;">Корзина</a>
+            {% endif %}
+            <select id="bulkStatusSelect" class="badge">
+                {% if trash %}
+                    <option value="">Действие</option>
+                    <option value="__purge__">Удалить навсегда</option>
+                    <option value="__restore__">Восстановить</option>
+                {% else %}
+                    <option value="">Изменить статусы</option>
+                    {% for code, meta in status_badges.items() %}
+                        <option value="{{ code }}">{{ meta['label'] }}</option>
+                    {% endfor %}
+                    <option value="__delete__">Удалить заказ(ы)</option>
+                {% endif %}
             </select>
-            <button type="button" id="bulkApplyBtn" style="padding:8px 12px; border:0; background:#222; color:white; cursor:pointer;" disabled>
+            <button type="button" id="bulkApplyBtn" class="ctrl-btn ctrl-btn--dark" disabled>
                 Применить
             </button>
             <span class="sync-spinner" id="bulkApplySpinner"></span>
         </div>
     </div>
 
-    <div class="topbar-info" style="margin-top:8px;">
+    <div class="topbar-summary-row">
+        <div class="topbar-summary">
+            <span class="k">Підтверджено/Створено ТТН:</span>
+            <span class="v">
+                {% if product_counts %}
+                    {% for name, qty in product_counts|dictsort %}
+                        {% set first = ((name or '').split(' ')[:1] | join(' ')) %}
+                        {% set low = (first or '')|lower %}
+                        {% set cls = '' %}
+                        {% if low.startswith('добрий') %}{% set cls = 'cal-dobriy' %}
+                        {% elif low.startswith('мій') %}{% set cls = 'cal-miy' %}
+                        {% elif low.startswith('світ') %}{% set cls = 'cal-svit' %}
+                        {% elif low.startswith('разом') %}{% set cls = 'cal-razom' %}
+                        {% endif %}
+                        <span class="{{ cls }}" title="{{ name }}">{{ first }} x {{ qty }}</span>
+                    {% endfor %}
+                {% else %}
+                    <span style="color:#888;">—</span>
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <div class="topbar-info" style="margin-top:4px;">
         {% if last_sync_at %}
             <span style="font-size:13px; color:#333;">Последняя синхронизация: {{ last_sync_at }}</span>
         {% endif %}
@@ -311,8 +698,10 @@ a{
     </div>
 </div>
 
-<div class="table-wrap">
-<table>
+<div class="table-scroll-top" id="ordersTableScrollTop"><div class="table-scroll-top-inner" id="ordersTableScrollTopInner"></div></div>
+
+<div class="table-wrap" id="ordersTableWrap">
+<table id="ordersTable">
 <tr>
     <th class="col-select"><input type="checkbox" id="selectAllCb" title="Выбрать все" /></th>
     <th>Woo ID</th>
@@ -321,6 +710,7 @@ a{
     <th>Телефон</th>
     <th>Товары</th>
     <th>Статус</th>
+    <th>НП</th>
     <th>Доставка</th>
     <th>Оплата</th>
     <th>Сумма</th>
@@ -349,6 +739,25 @@ a{
             <option value="{{ code }}" {% if code==o['status_code'] %}selected{% endif %}>{{ meta['label'] }}</option>
         {% endfor %}
     </select>
+</td>
+
+<td class="np-track-td">
+    {% set _ds = (o.get('delivery_service','') or '')|lower %}
+    {% set _ttn = (o.get('ttn_number','') or '') %}
+    {% set _np_text = (o.get('np_status','') or '') %}
+    {% set _np_color = (o.get('np_color','') or '') %}
+    {% if _ds == 'np' %}
+        {% if _ttn %}
+            <span class="np-track" data-ttn="{{ _ttn }}" data-np-color="{{ _np_color }}">
+                <span class="np-dot" style="background:#9e9e9e;"></span>
+                <span class="np-text">{% if _np_text %}{{ _np_text }}{% else %}...{% endif %}</span>
+            </span>
+        {% else %}
+            <span class="np-track np-track--empty"><span class="np-dot" style="background:transparent;"></span><span class="np-text"></span></span>
+        {% endif %}
+    {% else %}
+        <span class="np-track np-track--empty"><span class="np-dot" style="background:transparent;"></span><span class="np-text"></span></span>
+    {% endif %}
 </td>
 
 <td class="delivery-td">
@@ -385,9 +794,20 @@ a{
 <td class="comment-cell" title="{{ o.get('comment','') }}">{{ o.get('comment','') }}</td>
 
 <td class="col-delete">
-    <form method="post" action="/order/{{ o['woo_id'] }}/delete" class="delete-form" data-woo-id="{{ o['woo_id'] }}" style="margin:0;">
-        <button type="submit" class="btn-delete" title="Удалить">✕</button>
-    </form>
+    {% if trash %}
+        <div style="display:flex; gap:6px; justify-content:center; padding:0 6px;">
+            <form method="post" action="/order/{{ o['woo_id'] }}/restore" style="margin:0;">
+                <button type="submit" class="btn-restore" title="Восстановить">↩</button>
+            </form>
+            <form method="post" action="/order/{{ o['woo_id'] }}/purge" style="margin:0;" class="purge-form" data-woo-id="{{ o['woo_id'] }}">
+                <button type="submit" class="btn-delete" title="Удалить навсегда">✕</button>
+            </form>
+        </div>
+    {% else %}
+        <form method="post" action="/order/{{ o['woo_id'] }}/delete" class="delete-form" data-woo-id="{{ o['woo_id'] }}" style="margin:0;">
+            <button type="submit" class="btn-delete" title="В корзину">✕</button>
+        </form>
+    {% endif %}
 </td>
 </tr>
 {% endfor %}
@@ -396,14 +816,14 @@ a{
 
 </div>
 
-<div style="max-width: 100%; margin: 12px 0; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+<div class="pagebar-wrap" style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
     <div style="font-size:13px; color:#333;">
         Показано: {{ orders|length }} из {{ total_count }}
     </div>
 
     <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         {% if page > 1 %}
-            <a href="/?page={{ page - 1 }}&date_from={{ date_from }}&date_to={{ date_to }}">‹ Пред</a>
+            <a href="/?page={{ page - 1 }}&date_from={{ date_from }}&date_to={{ date_to }}&q={{ q or '' }}{% if trash %}&trash=1{% endif %}">‹ Пред</a>
         {% else %}
             <span style="color:#888;">‹ Пред</span>
         {% endif %}
@@ -413,6 +833,8 @@ a{
         <form method="get" action="/" style="display:inline-flex; gap:6px; align-items:center; margin:0;">
             <input type="hidden" name="date_from" value="{{ date_from }}" />
             <input type="hidden" name="date_to" value="{{ date_to }}" />
+            <input type="hidden" name="q" value="{{ q or '' }}" />
+            {% if trash %}<input type="hidden" name="trash" value="1" />{% endif %}
             <input
                 type="number"
                 name="page"
@@ -422,11 +844,11 @@ a{
                 style="width:70px; padding:6px 8px; border:1px solid #ccc; border-radius:6px; font-size:13px;"
                 title="Перейти на страницу"
             />
-            <button type="submit" style="padding:6px 10px; border:0; background:#222; color:white; cursor:pointer; font-size:13px; border-radius:6px;">Перейти</button>
+            <button type="submit" class="ctrl-btn">Перейти</button>
         </form>
 
         {% if page < total_pages %}
-            <a href="/?page={{ page + 1 }}&date_from={{ date_from }}&date_to={{ date_to }}">След ›</a>
+            <a href="/?page={{ page + 1 }}&date_from={{ date_from }}&date_to={{ date_to }}&q={{ q or '' }}{% if trash %}&trash=1{% endif %}">След ›</a>
         {% else %}
             <span style="color:#888;">След ›</span>
         {% endif %}
@@ -455,19 +877,246 @@ function wireSyncForm(formId, btnId, spinnerId, confirmMessage){
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    wireSyncForm('syncOrdersForm', 'syncOrdersBtn', 'syncOrdersSpinner');
-    wireSyncForm(
-        'syncStatusesForm',
-        'syncStatusesBtn',
-        'syncStatusesSpinner',
-        'Вы точно хотите заменить все текущие статусы в Woocomerc Wordpress?'
-    );
+    function updateOrdersTableTopScroll(){
+        const wrap = document.getElementById('ordersTableWrap');
+        const table = document.getElementById('ordersTable');
+        const top = document.getElementById('ordersTableScrollTop');
+        const inner = document.getElementById('ordersTableScrollTopInner');
+        if (!wrap || !table || !top || !inner) return;
+        const w = table.scrollWidth || table.getBoundingClientRect().width || 0;
+        inner.style.width = Math.max(0, Math.ceil(w)) + 'px';
+    }
+    window.updateOrdersTableTopScroll = updateOrdersTableTopScroll;
+
+    (function wireOrdersTableTopScroll(){
+        const wrap = document.getElementById('ordersTableWrap');
+        const top = document.getElementById('ordersTableScrollTop');
+        if (!wrap || !top) return;
+        let lock = false;
+        top.addEventListener('scroll', () => {
+            if (lock) return;
+            lock = true;
+            wrap.scrollLeft = top.scrollLeft;
+            lock = false;
+        });
+        wrap.addEventListener('scroll', () => {
+            if (lock) return;
+            lock = true;
+            top.scrollLeft = wrap.scrollLeft;
+            lock = false;
+        });
+        window.addEventListener('resize', updateOrdersTableTopScroll);
+        updateOrdersTableTopScroll();
+    })();
+
+    (function initResizableColumns(){
+        const table = document.getElementById('ordersTable');
+        if (!table) return;
+
+        const STORAGE_KEY = 'ordersTable.colWidths.v1';
+        const headRow = table.querySelector('tr');
+        if (!headRow) return;
+        const ths = Array.from(headRow.children).filter(el => el && el.tagName === 'TH');
+        if (!ths.length) return;
+
+        let colgroup = table.querySelector('colgroup');
+        if (!colgroup){
+            colgroup = document.createElement('colgroup');
+            for (let i = 0; i < ths.length; i++){
+                const c = document.createElement('col');
+                colgroup.appendChild(c);
+            }
+            table.insertBefore(colgroup, table.firstChild);
+        }
+        const cols = Array.from(colgroup.querySelectorAll('col'));
+        if (cols.length !== ths.length) return;
+
+        let stored = null;
+        try{
+            stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        }catch(e){
+            stored = null;
+        }
+        if (Array.isArray(stored)){
+            for (let i = 0; i < Math.min(stored.length, cols.length); i++){
+                const w = Number(stored[i]);
+                if (w && w > 30){
+                    cols[i].style.width = w + 'px';
+                    ths[i].style.width = w + 'px';
+                }
+            }
+        }
+
+        function ensureAllColWidths(){
+            // Important: if some cols have no explicit width, browser will redistribute widths
+            // and resizing one column will change others. Fix by setting widths for all columns.
+            try{
+                for (let i = 0; i < cols.length; i++){
+                    const raw = (cols[i].style.width || '').replace('px', '');
+                    const n = Number(raw);
+                    if (n && n > 0) continue;
+                    const w = Math.max(40, Math.ceil(ths[i].getBoundingClientRect().width || 0));
+                    cols[i].style.width = w + 'px';
+                    ths[i].style.width = w + 'px';
+                }
+            }catch(e){
+                // ignore
+            }
+        }
+
+        function getColWidthPx(i){
+            const raw = (cols[i] && cols[i].style && cols[i].style.width ? cols[i].style.width : '').replace('px', '');
+            const n = Number(raw);
+            if (n && n > 0) return n;
+            return Math.max(40, Math.ceil(ths[i].getBoundingClientRect().width || 0));
+        }
+
+        function syncTableWidthToCols(){
+            try{
+                let sum = 0;
+                for (const c of cols){
+                    const raw = (c.style.width || '').replace('px', '');
+                    const n = Number(raw);
+                    sum += (n && n > 0) ? n : 0;
+                }
+                const w = Math.max(0, Math.ceil(sum));
+                table.style.width = '100%';
+                if (w) table.style.minWidth = w + 'px';
+            }catch(e){
+                // ignore
+            }
+        }
+
+        ensureAllColWidths();
+        syncTableWidthToCols();
+
+        if (window.updateOrdersTableTopScroll) window.updateOrdersTableTopScroll();
+
+        function saveWidths(){
+            try{
+                const arr = cols.map(c => {
+                    const raw = (c.style.width || '').replace('px', '');
+                    const n = Number(raw);
+                    return (n && n > 0) ? n : null;
+                });
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+            }catch(e){
+                // ignore
+            }
+        }
+
+        function canResizeTh(th){
+            if (!th) return false;
+            if (th.classList.contains('col-select')) return false;
+            if (th.classList.contains('col-delete')) return false;
+            return true;
+        }
+
+        for (let i = 0; i < ths.length; i++){
+            const th = ths[i];
+            if (!canResizeTh(th)) continue;
+
+            const handle = document.createElement('span');
+            handle.className = 'th-resizer';
+            handle.dataset.colIndex = String(i);
+            handle.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            th.appendChild(handle);
+
+            function startResize(clientX, idx){
+                ensureAllColWidths();
+                syncTableWidthToCols();
+                const startX = clientX;
+                const startWidth = getColWidthPx(idx);
+                const minWidth = 40;
+
+                function applyX(x){
+                    const dx = x - startX;
+                    const next = Math.max(minWidth, Math.round(startWidth + dx));
+                    cols[idx].style.width = next + 'px';
+                    ths[idx].style.width = next + 'px';
+                    syncTableWidthToCols();
+                    if (window.updateOrdersTableTopScroll) window.updateOrdersTableTopScroll();
+                }
+
+                return { applyX };
+            }
+
+            // Pointer Events: works for mouse + touch in modern browsers (incl. mobile Chrome)
+            handle.addEventListener('pointerdown', (e) => {
+                if (e.button !== undefined && e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+
+                const idx = Number(handle.dataset.colIndex);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= cols.length) return;
+
+                const s = startResize(e.clientX, idx);
+                try{ handle.setPointerCapture(e.pointerId); }catch(err){}
+
+                function onMove(ev){
+                    s.applyX(ev.clientX);
+                }
+
+                function onUp(){
+                    handle.removeEventListener('pointermove', onMove);
+                    handle.removeEventListener('pointerup', onUp);
+                    handle.removeEventListener('pointercancel', onUp);
+                    try{ handle.releasePointerCapture(e.pointerId); }catch(err){}
+                    syncTableWidthToCols();
+                    saveWidths();
+                    if (window.updateOrdersTableTopScroll) window.updateOrdersTableTopScroll();
+                }
+
+                handle.addEventListener('pointermove', onMove);
+                handle.addEventListener('pointerup', onUp);
+                handle.addEventListener('pointercancel', onUp);
+            });
+        }
+    })();
+
+    (function initCellHoverTitles(){
+        const table = document.getElementById('ordersTable');
+        if (!table) return;
+        for (const td of Array.from(table.querySelectorAll('td'))){
+            if (!td) continue;
+            if (td.hasAttribute('title')) continue;
+            const t = (td.textContent || '').trim();
+            if (!t) continue;
+            td.setAttribute('title', t);
+        }
+    })();
 
     const bulkCount = document.getElementById('bulkCount');
     const bulkStatusSelect = document.getElementById('bulkStatusSelect');
     const bulkApplyBtn = document.getElementById('bulkApplyBtn');
     const bulkApplySpinner = document.getElementById('bulkApplySpinner');
     const selectAllCb = document.getElementById('selectAllCb');
+
+    function setBulkStatusSelectColor(){
+        if (!bulkStatusSelect) return;
+        try{
+            const v = String(bulkStatusSelect.value || '').trim();
+            if (!v || v.startsWith('__')){
+                const toRemove = [];
+                for (const c of Array.from(bulkStatusSelect.classList)){
+                    if (String(c || '').startsWith('badge--')) toRemove.push(c);
+                }
+                for (const c of toRemove) bulkStatusSelect.classList.remove(c);
+                return;
+            }
+            const cls = v ? ('badge--' + v.replaceAll('_','-')) : '';
+            const toRemove = [];
+            for (const c of Array.from(bulkStatusSelect.classList)){
+                if (String(c || '').startsWith('badge--')) toRemove.push(c);
+            }
+            for (const c of toRemove) bulkStatusSelect.classList.remove(c);
+            if (cls) bulkStatusSelect.classList.add(cls);
+        }catch(e){
+            // ignore
+        }
+    }
 
     function getSelectedWooIds(){
         return Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'))
@@ -494,6 +1143,45 @@ document.addEventListener('DOMContentLoaded', () => {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({woo_ids: wooIds, status})
+        });
+        const data = await r.json();
+        if (!r.ok){
+            throw new Error((data && data.error) ? data.error : 'Ошибка');
+        }
+        return data;
+    }
+
+    async function postBulkDelete(wooIds){
+        const r = await fetch('/orders/delete_bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({woo_ids: wooIds})
+        });
+        const data = await r.json();
+        if (!r.ok){
+            throw new Error((data && data.error) ? data.error : 'Ошибка');
+        }
+        return data;
+    }
+
+    async function postBulkRestore(wooIds){
+        const r = await fetch('/orders/restore_bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({woo_ids: wooIds})
+        });
+        const data = await r.json();
+        if (!r.ok){
+            throw new Error((data && data.error) ? data.error : 'Ошибка');
+        }
+        return data;
+    }
+
+    async function postBulkPurge(wooIds){
+        const r = await fetch('/orders/purge_bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({woo_ids: wooIds})
         });
         const data = await r.json();
         if (!r.ok){
@@ -535,15 +1223,87 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (bulkStatusSelect){
-        bulkStatusSelect.addEventListener('change', updateBulkUi);
+        bulkStatusSelect.addEventListener('change', () => {
+            setBulkStatusSelectColor();
+            updateBulkUi();
+        });
+    }
+
+    // Color options in the bulk dropdown (browser-dependent; works in most cases)
+    try{
+        const STATUS_COLORS = {
+            "new": "#6cad17",
+            "not_paid": "#d32f2f",
+            "hold": "#cddc39",
+            "ttn": "#fb8c00",
+            "confirmed": "#1976d2",
+            "shipped": "#7b1fa2",
+            "no_answer": "#6d4c41",
+            "canceled": "#616161",
+            "bad": "#212121",
+            "paid": "#2e7d32",
+        };
+        if (bulkStatusSelect){
+            for (const opt of Array.from(bulkStatusSelect.options || [])){
+                const v = String(opt.value || '').trim();
+                if (!v || v.startsWith('__')) continue;
+                if (STATUS_COLORS[v]){
+                    opt.style.color = STATUS_COLORS[v];
+                    opt.style.fontWeight = '700';
+                }
+                opt.style.backgroundColor = '#fff';
+            }
+        }
+    }catch(e){
+        // ignore
     }
 
     if (bulkApplyBtn){
         bulkApplyBtn.addEventListener('click', async () => {
             const ids = getSelectedWooIds();
-            const status = (bulkStatusSelect ? bulkStatusSelect.value : '') || '';
-            if (!ids.length) return;
-            if (!String(status).trim()) return;
+            const status = String(bulkStatusSelect.value || '').trim();
+            if (!ids.length || !status) return;
+
+            if (status === '__delete__'){
+                if (!confirm('Переместить выбранные заказы в корзину?')) return;
+                setDisabledBulk(true);
+                try{
+                    await postBulkDelete(ids);
+                    window.location.reload();
+                }catch(e){
+                    alert(e && e.message ? e.message : 'Ошибка');
+                    setDisabledBulk(false);
+                }
+                return;
+            }
+
+            if (status === '__restore__'){
+                if (!confirm('Восстановить выбранные заказы?')) return;
+                setDisabledBulk(true);
+                try{
+                    await postBulkRestore(ids);
+                    window.location.reload();
+                }catch(e){
+                    alert(e && e.message ? e.message : 'Ошибка');
+                    setDisabledBulk(false);
+                }
+                return;
+            }
+
+            if (status === '__purge__'){
+                if (!confirm('Удалить навсегда выбранные заказы?')) return;
+                setDisabledBulk(true);
+                try{
+                    await postBulkPurge(ids);
+                    window.location.reload();
+                }catch(e){
+                    alert(e && e.message ? e.message : 'Ошибка');
+                    setDisabledBulk(false);
+                }
+                return;
+            }
+
+            if (!confirm('Изменить статус выбранных заказов?')) return;
             if (!confirm('Изменить статус для ' + String(ids.length) + ' заказ(ов)?')) return;
 
             setDisabledBulk(true);
@@ -559,6 +1319,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     sel.dataset.prevValue = u.status_code;
                 }
 
+                if (String(status) === 'ttn'){
+                    window.location.reload();
+                    return;
+                }
+
+                for (const wid of ids){
+                    setNpEmpty(wid);
+                }
+
                 for (const cb of Array.from(document.querySelectorAll('input.row-cb[data-woo-id]'))){
                     cb.checked = false;
                 }
@@ -568,10 +1337,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 updateBulkUi();
             }catch(e){
-                alert(e.message || 'Ошибка');
+                alert(e && e.message ? e.message : 'Ошибка');
             }finally{
                 setDisabledBulk(false);
-                updateBulkUi();
             }
         });
     }
@@ -585,6 +1353,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (target.closest('select.status-select')) return;
             if (target.closest('td.col-delete')) return;
             if (target.closest('form.delete-form')) return;
+            if (target.closest('form.purge-form')) return;
             if (target.closest('button.btn-delete')) return;
             if (target.closest('a')) return;
             const wooId = tr.dataset.wooId;
@@ -596,7 +1365,17 @@ document.addEventListener('DOMContentLoaded', () => {
     for (const f of Array.from(document.querySelectorAll('form.delete-form[data-woo-id]'))){
         f.addEventListener('submit', (e) => {
             const wid = f.dataset.wooId || '';
-            if (!confirm('Удалить заказ ' + wid + '?')){
+            if (!confirm('Переместить в корзину заказ ' + wid + '?')){
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+
+    for (const f of Array.from(document.querySelectorAll('form.purge-form[data-woo-id]'))){
+        f.addEventListener('submit', (e) => {
+            const wid = f.dataset.wooId || '';
+            if (!confirm('Удалить навсегда заказ ' + wid + '?')){
                 e.preventDefault();
                 return false;
             }
@@ -666,6 +1445,64 @@ async function postStatus(wooId, status){
     return data;
 }
 
+function getNpCell(wooId){
+    const tr = document.querySelector('tr.order-row[data-woo-id="' + String(wooId) + '"]');
+    if (!tr) return null;
+    const td = tr.querySelector('td.np-track-td');
+    if (!td) return null;
+    return td;
+}
+
+function setNpEmpty(wooId){
+    const td = getNpCell(wooId);
+    if (!td) return;
+    td.innerHTML = '<span class="np-track np-track--empty"><span class="np-dot" style="background:transparent;"></span><span class="np-text"></span></span>';
+}
+
+function setNpLoadingWithTtn(wooId, ttn){
+    const td = getNpCell(wooId);
+    if (!td) return;
+    const safe = String(ttn || '').trim();
+    if (!safe){
+        setNpEmpty(wooId);
+        return;
+    }
+    td.innerHTML = '<span class="np-track" data-ttn="' + safe.replace(/"/g, '&quot;') + '"><span class="np-dot" style="background:#9e9e9e;"></span><span class="np-text">...</span></span>';
+}
+
+async function fetchNpStatusForTtn(ttn){
+    const s = String(ttn || '').trim();
+    if (!s) return null;
+    const r = await fetch('/np/ttn_statuses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ttns: [s] }),
+    });
+    const data = await r.json();
+    const items = (data && data.items) ? data.items : {};
+    return items[s] || null;
+}
+
+async function updateNpCellForTtn(wooId, ttn){
+    setNpLoadingWithTtn(wooId, ttn);
+    try{
+        const info = await fetchNpStatusForTtn(ttn);
+        const td = getNpCell(wooId);
+        if (!td) return;
+        const el = td.querySelector('.np-track[data-ttn]');
+        if (!el) return;
+        const dot = el.querySelector('.np-dot');
+        const txt = el.querySelector('.np-text');
+        const color = info && info.color ? String(info.color) : '#9e9e9e';
+        const text = info && typeof info.status !== 'undefined' ? String(info.status || '') : '';
+        if (dot) dot.style.background = color;
+        if (txt) txt.textContent = text || '—';
+        el.title = text || '';
+    }catch(e){
+        // ignore
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const STATUS_COLORS = {
         "new": "#6cad17",
@@ -706,6 +1543,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await postStatus(wooId, next);
                 applyBadgeClass(sel, res.status_class);
                 sel.dataset.prevValue = res.status_code;
+
+                if (String(res.status_code) !== 'ttn'){
+                    setNpEmpty(wooId);
+                } else {
+                    if (res.ttn_number){
+                        await updateNpCellForTtn(wooId, res.ttn_number);
+                    } else {
+                        // if API didn't return, reload to keep UI consistent
+                        window.location.reload();
+                    }
+                }
             }catch(e){
                 if (prev) sel.value = prev;
                 alert(e.message || 'Ошибка');
