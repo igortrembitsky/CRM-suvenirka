@@ -124,20 +124,20 @@ select.badge.badge--no-answer,
 select.badge.badge--canceled,
 select.badge.badge--bad,
 select.badge.badge--paid{
-    background: unset;
+    background-color: unset;
     color: unset;
 }
 
-select.badge.badge--new{ background:#6cad17; color:#fff; }
-select.badge.badge--not-paid{ background:#d32f2f; color:#fff; }
-select.badge.badge--hold{ background:#cddc39; color:#1b1b1b; }
-select.badge.badge--ttn{ background:#fb8c00; color:#fff; }
-select.badge.badge--confirmed{ background:#1976d2; color:#fff; }
-select.badge.badge--shipped{ background:#7b1fa2; color:#fff; }
-select.badge.badge--no-answer{ background:#6d4c41; color:#fff; }
-select.badge.badge--canceled{ background:#616161; color:#fff; }
-select.badge.badge--bad{ background:#212121; color:#fff; }
-select.badge.badge--paid{ background:#2e7d32; color:#fff; }
+select.badge.badge--new{ background-color:#6cad17; color:#fff; }
+select.badge.badge--not-paid{ background-color:#d32f2f; color:#fff; }
+select.badge.badge--hold{ background-color:#cddc39; color:#1b1b1b; }
+select.badge.badge--ttn{ background-color:#fb8c00; color:#fff; }
+select.badge.badge--confirmed{ background-color:#1976d2; color:#fff; }
+select.badge.badge--shipped{ background-color:#7b1fa2; color:#fff; }
+select.badge.badge--no-answer{ background-color:#6d4c41; color:#fff; }
+select.badge.badge--canceled{ background-color:#616161; color:#fff; }
+select.badge.badge--bad{ background-color:#212121; color:#fff; }
+select.badge.badge--paid{ background-color:#2e7d32; color:#fff; }
 
 .ctrl-btn{
     padding:0 12px;
@@ -541,7 +541,7 @@ a{
 <div class="topbar-wrap">
     <div class="topbar-row">
         <div class="topbar-left">
-            <a class="ctrl-btn ctrl-btn--dark" href="/order/new" style="display:inline-flex; align-items:center;">Створити</a>
+            <a class="ctrl-btn ctrl-btn--dark" href="{{ url_for('order_new') }}" style="display:inline-flex; align-items:center;">Створити</a>
             <form method="post" action="/sync_range" class="date-filter" style="margin:0;">
                 <button type="submit" class="ctrl-btn ctrl-btn--primary">
                     Обновити

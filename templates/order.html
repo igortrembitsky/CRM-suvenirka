@@ -983,11 +983,13 @@ function wireRow(row){
                 return;
             }
 
-            const priceRaw = (prompt('Цена товара (грн)', '') || '').trim().replace(',', '.');
+            const priceRaw = (prompt('Цена за 1шт (грн) (можно оставить пустым)', '') || '').trim().replace(',', '.');
             const priceNum = parseNumber(priceRaw);
             if (priceNum !== null){
                 _wooPriceCache[name] = priceNum;
                 nameInput.dataset.price = String(priceNum);
+            } else {
+                nameInput.dataset.price = '';
             }
 
             const opt = document.createElement('option');
@@ -995,6 +997,18 @@ function wireRow(row){
             opt.textContent = name;
             nameInput.appendChild(opt);
             nameInput.value = name;
+
+            // If we don't have unit price, auto-calculation would lock the amount field empty.
+            // Switch Auto off to allow manual amount input.
+            if (priceNum === null){
+                autoCb.checked = false;
+                autoHidden.value = '0';
+                amtInput.readOnly = false;
+                try{ amtInput.focus(); }catch(e){}
+            } else {
+                autoCb.checked = true;
+                autoHidden.value = '1';
+            }
         }
         applyCalendarColorsToSelect(nameInput);
         applyPriceFromName();

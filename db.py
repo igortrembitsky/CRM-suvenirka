@@ -184,7 +184,7 @@ def create_local_order(woo_id: int, created_at: str):
 
 
 def purge_orders_bulk(woo_ids: list[int]):
-    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    ids = [int(x) for x in (woo_ids or []) if str(x).strip() != ""]
     if not ids:
         return
 
@@ -222,7 +222,7 @@ def restore_order(woo_id: int):
 
 
 def trash_orders_bulk(woo_ids: list[int]):
-    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    ids = [int(x) for x in (woo_ids or []) if str(x).strip() != ""]
     if not ids:
         return
     conn = get_conn()
@@ -237,7 +237,7 @@ def trash_orders_bulk(woo_ids: list[int]):
 
 
 def restore_orders_bulk(woo_ids: list[int]):
-    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    ids = [int(x) for x in (woo_ids or []) if str(x).strip() != ""]
     if not ids:
         return
     conn = get_conn()
@@ -252,7 +252,7 @@ def restore_orders_bulk(woo_ids: list[int]):
 
 
 def delete_orders_bulk(woo_ids: list[int]):
-    ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
+    ids = [int(x) for x in (woo_ids or []) if str(x).strip() != ""]
     if not ids:
         return
 
@@ -348,10 +348,16 @@ def delete_order(woo_id: int):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute(
-        "INSERT OR IGNORE INTO pending_woo_deletes (woo_id) VALUES (?)",
-        (woo_id,),
-    )
+    try:
+        wid = int(woo_id)
+    except Exception:
+        wid = None
+
+    if wid is not None and wid > 0:
+        cur.execute(
+            "INSERT OR IGNORE INTO pending_woo_deletes (woo_id) VALUES (?)",
+            (wid,),
+        )
 
     cur.execute("DELETE FROM order_items WHERE woo_id=?", (woo_id,))
     cur.execute("DELETE FROM orders WHERE woo_id=?", (woo_id,))

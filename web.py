@@ -644,6 +644,24 @@ def np_create_ttn_for_order(woo_id: int):
     except Exception:
         amount = 0.0
 
+    # If COD is selected but amount is missing, try to compute it from items.
+    # Otherwise NP may create TTN without payment control (AfterpaymentOnGoodsCost).
+    if amount <= 0:
+        try:
+            calc = compute_items_total_with_overrides(items)
+        except Exception:
+            calc = None
+        if calc is not None:
+            try:
+                amount = float(calc)
+            except Exception:
+                amount = 0.0
+        if amount > 0:
+            try:
+                db.update_order_fields(int(woo_id), {"amount": amount, "amount_auto": 1})
+            except Exception:
+                pass
+
     service_type = _np_detect_service_type(order)
     ps = _np_safe_strip(order.get("payment_state")).lower()
     is_cod = ps == "cod"
@@ -1432,11 +1450,10 @@ def compute_items_total_with_overrides(items):
 
         if amount_auto == 1:
             price = price_map.get(name)
-            if price is None:
+            if price is not None:
+                total += price * qty
+                found_any = True
                 continue
-            total += price * qty
-            found_any = True
-            continue
 
         # manual amount
         amt = it.get("amount")
@@ -1770,11 +1787,16 @@ def index():
     )
 
 
-@app.post("/order/<int:woo_id>/status")
-def update_order_status_inline(woo_id: int):
+@app.post("/order/<woo_id>/status")
+def update_order_status_inline(woo_id: str):
+    try:
+        woo_id_i = int(str(woo_id).strip())
+    except Exception:
+        return jsonify({"error": "Bad order id"}), 400
+
     prev_status_code = None
     try:
-        prev_row = db.get_order_by_woo_id(int(woo_id))
+        prev_row = db.get_order_by_woo_id(int(woo_id_i))
         if prev_row:
             prev_status_code = normalize_status(dict(prev_row).get("status"))
     except Exception:
@@ -1792,7 +1814,7 @@ def update_order_status_inline(woo_id: int):
         return jsonify({"error": "Invalid status"}), 400
 
     try:
-        db.update_status(woo_id, status_code)
+        db.update_status(woo_id_i, status_code)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1801,27 +1823,28 @@ def update_order_status_inline(woo_id: int):
     if status_code == "ttn":
         try:
             # Force re-create TTN even if old one exists
-            db.update_order_fields(int(woo_id), {"ttn_number": "", "ttn_error": "", "ttn_created_at": ""})
-            res = np_create_ttn_for_order(int(woo_id))
+            db.update_order_fields(int(woo_id_i), {"ttn_number": "", "ttn_error": "", "ttn_created_at": ""})
+            res = np_create_ttn_for_order(int(woo_id_i))
             ttn_number = res.get("ttn_number")
         except Exception as e:
             ttn_error = str(e)
             try:
-                db.update_order_fields(int(woo_id), {"ttn_error": ttn_error})
+                db.update_order_fields(int(woo_id_i), {"ttn_error": ttn_error})
             except Exception:
                 pass
 
     woo_status_sent = None
     woo_error = ""
-    try:
-        woo_status_sent = _woo_sync_status_single(int(woo_id), status_code)
-    except Exception as e:
-        woo_error = (str(e) or "")[:500]
+    if int(woo_id_i) > 0:
+        try:
+            woo_status_sent = _woo_sync_status_single(int(woo_id_i), status_code)
+        except Exception as e:
+            woo_error = (str(e) or "")[:500]
 
     badge = STATUS_BADGES.get(status_code, STATUS_BADGES["new"])
     return jsonify(
         {
-            "woo_id": woo_id,
+            "woo_id": woo_id_i,
             "status_code": status_code,
             "status_label": badge.get("label"),
             "status_class": badge.get("class"),
@@ -1890,7 +1913,7 @@ def update_orders_status_bulk():
     woo_ok = 0
     woo_error = ""
     try:
-        woo_ok = _woo_sync_status_bulk(ids, status_code)
+        woo_ok = _woo_sync_status_bulk([x for x in ids if int(x) > 0], status_code)
     except Exception as e:
         woo_error = (str(e) or "")[:500]
 
@@ -1910,7 +1933,7 @@ def delete_orders_bulk():
     except Exception:
         return jsonify({"error": "bad woo_ids"}), 400
 
-    ids = [x for x in ids if x > 0]
+    # Allow local CRM orders (negative woo_id) to be trashed as well.
     if not ids:
         return jsonify({"deleted": []})
 
@@ -1935,7 +1958,7 @@ def restore_orders_bulk():
     except Exception:
         return jsonify({"error": "bad woo_ids"}), 400
 
-    ids = [x for x in ids if x > 0]
+    # Allow local CRM orders (negative woo_id) to be restored as well.
     if not ids:
         return jsonify({"restored": []})
 
@@ -1960,7 +1983,7 @@ def purge_orders_bulk():
     except Exception:
         return jsonify({"error": "bad woo_ids"}), 400
 
-    ids = [x for x in ids if x > 0]
+    # Allow local CRM orders (negative woo_id) to be purged as well.
     if not ids:
         return jsonify({"purged": []})
 
@@ -2391,6 +2414,27 @@ def order_new():
     return redirect(url_for("order_card", woo_id=local_id))
 
 
+@app.get("/debug/routes")
+@login_required
+def debug_routes():
+    rules = []
+    for r in sorted(app.url_map.iter_rules(), key=lambda x: str(x)):
+        try:
+            rules.append({
+                "rule": str(r),
+                "endpoint": str(r.endpoint),
+                "methods": sorted([m for m in (r.methods or set()) if m not in ("HEAD", "OPTIONS")]),
+            })
+        except Exception:
+            continue
+
+    return jsonify({
+        "script_root": request.script_root,
+        "path": request.path,
+        "rules": rules,
+    })
+
+
 @app.get("/np/warehouses")
 def np_warehouses():
     if not NP_API_KEY:
@@ -2434,9 +2478,14 @@ def np_warehouses():
     return jsonify(res)
 
 
-@app.route("/order/<int:woo_id>", methods=["GET", "POST"])
-def order_card(woo_id: int):
-    row = db.get_order_by_woo_id(woo_id)
+@app.route("/order/<woo_id>", methods=["GET", "POST"])
+def order_card(woo_id: str):
+    try:
+        woo_id_i = int(str(woo_id).strip())
+    except Exception:
+        return "Bad order id", 400
+
+    row = db.get_order_by_woo_id(woo_id_i)
     if not row:
         return "Заказ не найден", 404
 
@@ -2531,30 +2580,30 @@ def order_card(woo_id: int):
                 "amount_auto": 1,
         }
 
-        db.update_order_fields(woo_id, update_payload)
-        db.replace_order_items(woo_id, items)
+        db.update_order_fields(woo_id_i, update_payload)
+        db.replace_order_items(woo_id_i, items)
 
         if status_code == "ttn":
             try:
                 # Force re-create TTN even if old one exists
-                db.update_order_fields(int(woo_id), {"ttn_number": "", "ttn_error": "", "ttn_created_at": ""})
-                np_create_ttn_for_order(int(woo_id))
+                db.update_order_fields(int(woo_id_i), {"ttn_number": "", "ttn_error": "", "ttn_created_at": ""})
+                np_create_ttn_for_order(int(woo_id_i))
             except Exception as e:
                 try:
-                    db.update_order_fields(int(woo_id), {"ttn_error": str(e)})
+                    db.update_order_fields(int(woo_id_i), {"ttn_error": str(e)})
                 except Exception:
                     pass
 
         woo_err = ""
         try:
-            _woo_sync_status_single(int(woo_id), status_code)
+            _woo_sync_status_single(int(woo_id_i), status_code)
         except Exception as e:
             woo_err = (str(e) or "")[:500]
         if close_after_save:
             return redirect(url_for("index"))
         if woo_err:
-            return redirect(url_for("order_card", woo_id=woo_id, saved=1, woo_err=woo_err))
-        return redirect(url_for("order_card", woo_id=woo_id, saved=1))
+            return redirect(url_for("order_card", woo_id=woo_id_i, saved=1, woo_err=woo_err))
+        return redirect(url_for("order_card", woo_id=woo_id_i, saved=1))
 
     o = dict(row)
 
@@ -2605,7 +2654,7 @@ def order_card(woo_id: int):
     if not (o.get("payment_state") or "").strip():
         inferred = infer_payment_state(o)
         o["payment_state"] = inferred if inferred else "cod"
-    items_rows = db.get_order_items(woo_id)
+    items_rows = db.get_order_items(woo_id_i)
     items = [dict(r) for r in items_rows]
     if not items:
         product = (o.get("product") or "").strip()
@@ -2619,7 +2668,7 @@ def order_card(woo_id: int):
     o["status_label"] = badge["label"]
     o["status_class"] = badge["class"]
 
-    prev_woo_id, next_woo_id = db.get_prev_next_woo_ids(woo_id)
+    prev_woo_id, next_woo_id = db.get_prev_next_woo_ids(int(woo_id_i))
 
     saved = request.args.get("saved") == "1"
     woo_err = (request.args.get("woo_err") or "").strip()
@@ -2636,21 +2685,36 @@ def order_card(woo_id: int):
     )
 
 
-@app.route("/order/<int:woo_id>/delete", methods=["POST"])
-def delete_order(woo_id: int):
-    db.trash_order(woo_id)
+@app.route("/order/<woo_id>/delete", methods=["POST"])
+def delete_order(woo_id: str):
+    try:
+        woo_id_i = int(str(woo_id).strip())
+    except Exception:
+        return "Bad order id", 400
+
+    db.trash_order(woo_id_i)
     return redirect(url_for("index"))
 
 
-@app.route("/order/<int:woo_id>/restore", methods=["POST"])
-def restore_order(woo_id: int):
-    db.restore_order(woo_id)
+@app.route("/order/<woo_id>/restore", methods=["POST"])
+def restore_order(woo_id: str):
+    try:
+        woo_id_i = int(str(woo_id).strip())
+    except Exception:
+        return "Bad order id", 400
+
+    db.restore_order(woo_id_i)
     return redirect(url_for("index", trash=1))
 
 
-@app.route("/order/<int:woo_id>/purge", methods=["POST"])
-def purge_order(woo_id: int):
-    db.delete_order(woo_id)
+@app.route("/order/<woo_id>/purge", methods=["POST"])
+def purge_order(woo_id: str):
+    try:
+        woo_id_i = int(str(woo_id).strip())
+    except Exception:
+        return "Bad order id", 400
+
+    db.delete_order(woo_id_i)
     return redirect(url_for("index", trash=1))
 
 
