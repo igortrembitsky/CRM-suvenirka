@@ -122,6 +122,67 @@ def init_db():
     conn.close()
 
 
+def get_next_local_woo_id() -> int:
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT MIN(woo_id) FROM orders")
+    row = cur.fetchone()
+    conn.close()
+
+    try:
+        min_id = int(row[0]) if row and row[0] is not None else None
+    except Exception:
+        min_id = None
+
+    if min_id is None:
+        return -1
+    if min_id >= 0:
+        return -1
+    return int(min_id) - 1
+
+
+def create_local_order(woo_id: int, created_at: str):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO orders
+        (woo_id, created_at, first_name, last_name, customer_name, phone, city, city_ref, address, warehouse_ref,
+         product, amount, amount_auto, status, delivery_service, shipping_method, payment_state, payment_method,
+         comment, call_attempts, is_deleted, deleted_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            int(woo_id),
+            created_at,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            None,
+            1,
+            "new",
+            "np",
+            "",
+            "cod",
+            "",
+            "",
+            0,
+            0,
+            None,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def purge_orders_bulk(woo_ids: list[int]):
     ids = [int(x) for x in (woo_ids or []) if int(x) > 0]
     if not ids:

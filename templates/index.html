@@ -541,6 +541,7 @@ a{
 <div class="topbar-wrap">
     <div class="topbar-row">
         <div class="topbar-left">
+            <a class="ctrl-btn ctrl-btn--dark" href="/order/new" style="display:inline-flex; align-items:center;">Створити</a>
             <form method="post" action="/sync_range" class="date-filter" style="margin:0;">
                 <button type="submit" class="ctrl-btn ctrl-btn--primary">
                     Обновити
@@ -723,7 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <td class="col-select"><input type="checkbox" class="row-cb" data-woo-id="{{ o['woo_id'] }}" /></td>
 <td>
     <a href="/order/{{ o['woo_id'] }}">
-        {{ o["woo_id"] }}
+        {{ o.get("display_woo_id", o["woo_id"]) }}
     </a>
 </td>
 

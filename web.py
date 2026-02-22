@@ -1658,6 +1658,15 @@ def index():
 
     for o in raw_orders:
         order = dict(o)
+        try:
+            wid_i = int(order.get("woo_id"))
+        except Exception:
+            wid_i = None
+
+        if wid_i is not None and wid_i < 0:
+            order["display_woo_id"] = "CRM" + str(abs(wid_i))
+        else:
+            order["display_woo_id"] = str(order.get("woo_id") or "")
         raw_status = order.get("status", "")
         code = normalize_status(raw_status)
         badge = STATUS_BADGES.get(code, STATUS_BADGES["new"])
@@ -2361,8 +2370,25 @@ def woo_products():
             "price": p.get("price") or p.get("regular_price") or "",
         })
 
+    # Local CRM-only product (not necessarily present in Woo)
+    res.append({
+        "id": "local-taro-ueita",
+        "name": "Таро Уейта",
+        "price": 650,
+    })
+
     _woo_cache_set(cache_key, res)
     return jsonify(res)
+
+
+@app.get("/order/new")
+@login_required
+def order_new():
+    # Use negative IDs for local CRM-created orders to avoid conflicts with WooCommerce IDs.
+    local_id = db.get_next_local_woo_id()
+    created_at = time.strftime("%Y-%m-%d %H:%M:%S")
+    db.create_local_order(local_id, created_at)
+    return redirect(url_for("order_card", woo_id=local_id))
 
 
 @app.get("/np/warehouses")

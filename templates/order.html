@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Заказ {{ o['woo_id'] }}</title>
+<title>Заказ {% if (o.get('woo_id')|int) < 0 %}CRM{{ (0 - (o.get('woo_id')|int)) }}{% else %}{{ o['woo_id'] }}{% endif %}</title>
 
 <style>
 body{
@@ -431,7 +431,7 @@ button{
 
 <div class="topbar">
     <div>
-        <h2>Заказ №{{ o['woo_id'] }}</h2>
+        <h2>Заказ №{% if (o.get('woo_id')|int) < 0 %}CRM{{ (0 - (o.get('woo_id')|int)) }}{% else %}{{ o['woo_id'] }}{% endif %}</h2>
     </div>
 
     <div class="order-nav">
@@ -478,10 +478,8 @@ button{
                 </div>
             </div>
             <div class="os-item">
-                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 10l1.5 10h11L19 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                <div class="os-text">
-                    <div class="os-k">Товар</div>
-                    <div class="os-v">
+                <svg class="os-ico" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 10l1.5 10h11L19 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <div class="os-text"><div class="os-k">Товар</div><div class="os-v">
                         {% if items and items|length>0 %}
                             {% for it in items %}
                                 <div>{{ it.get('name','') }}{% if it.get('qty',0) and it.get('qty',0)|int > 1 %} x{{ it.get('qty',0)|int }}{% endif %}</div>
@@ -489,8 +487,7 @@ button{
                         {% else %}
                             <div></div>
                         {% endif %}
-                    </div>
-                </div>
+                    </div></div>
             </div>
 
             <div class="os-item">
@@ -850,6 +847,7 @@ function applyCalendarColorsToSelect(selectEl){
     if (!selectEl) return;
     for (const opt of Array.from(selectEl.options || [])){
         const c = getCalendarColorByName(opt.value);
+
         if (c){
             opt.style.color = c;
             opt.style.fontWeight = '700';
@@ -874,6 +872,12 @@ function fillProductSelect(selectEl, selectedName){
     if (!selectEl || !optionsSelect) return;
 
     selectEl.innerHTML = optionsSelect.innerHTML;
+
+    // Manual entry option
+    const manualOpt = document.createElement('option');
+    manualOpt.value = '__manual__';
+    manualOpt.textContent = 'Ввести вручную…';
+    selectEl.appendChild(manualOpt);
 
     if (selectedName){
         selectEl.value = selectedName;
@@ -919,6 +923,7 @@ function removeRow(btn){
 }
 
 function wireRow(row){
+
     const nameInput = row.querySelector('.item-name');
     const qtyInput = row.querySelector('.item-qty');
     const amtInput = row.querySelector('.item-amount');
@@ -968,6 +973,29 @@ function wireRow(row){
     }
 
     nameInput.addEventListener('change', () => {
+        if ((nameInput.value || '') === '__manual__'){
+            const name = (prompt('Название товара', '') || '').trim();
+            if (!name){
+                nameInput.value = '';
+                applyCalendarColorsToSelect(nameInput);
+                applyPriceFromName();
+                recalcRow();
+                return;
+            }
+
+            const priceRaw = (prompt('Цена товара (грн)', '') || '').trim().replace(',', '.');
+            const priceNum = parseNumber(priceRaw);
+            if (priceNum !== null){
+                _wooPriceCache[name] = priceNum;
+                nameInput.dataset.price = String(priceNum);
+            }
+
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            nameInput.appendChild(opt);
+            nameInput.value = name;
+        }
         applyCalendarColorsToSelect(nameInput);
         applyPriceFromName();
         recalcRow();
